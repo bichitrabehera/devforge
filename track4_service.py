@@ -1,57 +1,50 @@
-"""Adapter entry point for Hackathon Track 4.
+"""JSON stdin/stdout service adapter.
 
-Reads JSON from stdin, calls team_app.dispatch(request),
-writes single JSON to stdout, exits 0.
-
-Never prints key material, shared secrets, private keys, or protected resource
-contents to stdout/stderr. All diagnostics/errors go to stderr only.
+Reads exactly one JSON object from stdin, calls src.dispatch.dispatch(),
+writes exactly one JSON object to stdout and exits 0.  Diagnostics go to
+stderr only.  Responses never contain key material, shared secrets, private
+keys or protected plaintext.
 """
 
-import sys
 import json
+import os
+import sys
 import traceback
 
-# Ensure team_app is importable from the same root
-import team_app
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def run_service():
-    """Read one JSON object from stdin, dispatch, write JSON to stdout, exit 0."""
     try:
         raw = sys.stdin.readline()
         if not raw:
-            # EOF - write empty/ERROR JSON and exit
-            sys.stdout.write(json.dumps({"status": "error", "message": "no_input"}))
-            sys.stdout.flush()
-            sys.exit(0)
+            _emit({"status": "error", "message": "no_input"})
+            return 0
         request = json.loads(raw)
     except json.JSONDecodeError as e:
-        sys.stderr.write(f"Invalid JSON input: {e}\n")
-        sys.stderr.flush()
-        sys.stdout.write(json.dumps({"status": "error", "message": "invalid_json"}))
-        sys.stdout.flush()
-        sys.exit(0)
+        sys.stderr.write("Invalid JSON input: %s\n" % e)
+        _emit({"status": "error", "message": "invalid_json"})
+        return 0
     except Exception as e:
-        sys.stderr.write(f"Input read error: {e}\n")
-        sys.stderr.flush()
-        sys.stdout.write(json.dumps({"status": "error", "message": str(e)}))
-        sys.stdout.flush()
-        sys.exit(0)
+        sys.stderr.write("Input read error: %s\n" % e)
+        _emit({"status": "error", "message": "input_read_failed"})
+        return 0
 
+    from src.dispatch import dispatch
     try:
-        resp = team_app.dispatch(request)
-        # Strictly one valid JSON object on stdout
-        sys.stdout.write(json.dumps(resp, separators=(",", ":")))
-        sys.stdout.flush()
-    except Exception as e:
-        # Unexpected error - emit to stderr, JSON on stdout
-        sys.stderr.write(f"Dispatch error: {e}\n{traceback.format_exc()}\n")
-        sys.stderr.flush()
-        sys.stdout.write(json.dumps({"status": "error", "message": "dispatch_failed"}))
-        sys.stdout.flush()
+        resp = dispatch(request)
+    except Exception:
+        sys.stderr.write(traceback.format_exc())
+        resp = {"status": "error", "message": "dispatch_failed"}
+    _emit(resp)
+    return 0
 
-    sys.exit(0)
+
+def _emit(obj):
+    sys.stdout.write(json.dumps(obj, separators=(",", ":")))
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":
-    run_service()
+    sys.exit(run_service())
