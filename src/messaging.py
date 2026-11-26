@@ -218,6 +218,20 @@ def op_message_receive(request):
     except ValueError:
         return {"status": "error", "message": "bad_hex"}
 
+    # msg_id is DERIVED metadata: sha256(sid|counter)[:24]. The envelope's
+    # sid and counter are inside the AEAD, so a caller-supplied msg_id that
+    # disagrees with the derived value is tampered metadata - reject it.
+    # The duplicate-replay set is keyed by the DERIVED id, so renaming a
+    # replayed envelope cannot bypass duplicate detection.
+    derived_id = _msg_id(sid, counter)
+    if msg_id != derived_id:
+        audit.append(state, recipient or "unknown", "message_receive",
+                     sid, "deny", detail="msg_id_mismatch msg=%s" % msg_id)
+        st.save_state(state)
+        return {"status": "ok", "decision": "reject",
+                "reason": "msg_id_mismatch", "msg_id": msg_id}
+    msg_id = derived_id
+
     # Recipient binding: the authenticated AAD must name the receiver.
     if recipient != session["recipient"]:
         audit.append(state, recipient or "unknown", "message_receive", sid,

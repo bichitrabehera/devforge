@@ -179,7 +179,8 @@ class TestMessagingAttacks(AttackTest):
                       "msg_id": m["msg_id"], "counter": m["counter"],
                       "nonce": m["nonce"], "ciphertext": m["ciphertext"]})
         self.assertEqual(r["decision"], "reject")
-        self.assertEqual(r["reason"], "authentication_failed")
+        # derived-msg_id check fires before AEAD (sid differs -> id differs)
+        self.assertIn(r["reason"], ("msg_id_mismatch", "authentication_failed"))
 
     def test_forged_resumption_token(self):
         s = self._session()

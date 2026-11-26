@@ -330,7 +330,11 @@ def evaluate_labelled(events_path=None, labels_path=None, approvals_path=None,
             "approvals": "subject + operation + role + validity window",
             "service_graph": sorted("%s->%s" % (a, b)
                                     for a, b in SERVICE_GRAPH),
-            "role_scopes": ROLE_SCOPES,
+            # JSON-safe: roles map to SORTED LISTS, not sets (sets are not
+            # JSON serializable - this response crosses the adapter's
+            # json.dumps boundary).
+            "role_scopes": {role: sorted(s)
+                            for role, s in ROLE_SCOPES.items()},
             "lateral_burst_min": LATERAL_BURST_MIN,
         },
     }

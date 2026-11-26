@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import sys
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -353,6 +354,154 @@ class TestRevokedSenderMessaging(QATest):
         r = dispatch({"op": "session_open", "sender": "alice",
                       "recipient": "bob"})
         self.assertEqual(r["message"], "sender_not_active")
+
+
+class TestAdapterEndpoint(unittest.TestCase):
+    """The organizer-facing stdin/stdout path: valid JSON always, never a
+    traceback, detector op works, concurrent processes serialize."""
+
+    def _run(self, request, state_dir):
+        import subprocess
+        env = dict(os.environ, TRACK4_STATE_DIR=state_dir)
+        return subprocess.run(
+            [sys.executable, os.path.join(ROOT, "track4_service.py")],
+            input=json.dumps(request).encode(), capture_output=True,
+            env=env, timeout=120)
+
+    def _fresh(self):
+        return tempfile.mkdtemp(prefix="track4_adapter_")
+
+    def test_detector_op_returns_valid_json(self):
+        d = self._fresh()
+        try:
+            p = self._run({"op": "setup", "owners": {},
+                           "contents": {}}, d)
+            self.assertEqual(json.loads(p.stdout)["status"], "ok")
+            ev = os.path.join(ROOT, "practice", "events.csv")
+            lb = os.path.join(ROOT, "practice", "labels.csv")
+            ap = os.path.join(ROOT, "practice", "approvals.json")
+            if not os.path.isfile(ev):
+                self.skipTest("practice dataset not present")
+            p = self._run({"op": "detector_evaluate", "events_path": ev,
+                           "labels_path": lb, "approvals_path": ap}, d)
+            self.assertEqual(p.returncode, 0, msg=p.stderr.decode())
+            self.assertNotIn("Traceback", p.stderr.decode())
+            r = json.loads(p.stdout)      # would raise on non-JSON
+            self.assertIn("f1", r)
+            self.assertEqual(r["f1"], 1.0)
+            # previously crashed on sets: context must be JSON-safe
+            self.assertIsInstance(r["context_model"]["role_scopes"]["viewer"],
+                                  list)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_no_traceback_on_any_failure(self):
+        d = self._fresh()
+        import subprocess
+        try:
+            for req in ("{not json", "", '{"op":"detector_evaluate"}',
+                        '{"op":"read","actor":["x"],"asset":123}'):
+                p = subprocess.run(
+                    [sys.executable, os.path.join(ROOT, "track4_service.py")],
+                    input=req.encode(), capture_output=True,
+                    env=dict(os.environ, TRACK4_STATE_DIR=d), timeout=60)
+                self.assertEqual(p.returncode, 0, msg=req)
+                self.assertNotIn("Traceback", p.stderr.decode(), msg=req)
+                self.assertNotIn("Traceback", p.stdout.decode(), msg=req)
+                json.loads(p.stdout)      # always valid JSON
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_concurrent_processes_serialize(self):
+        import subprocess
+        d = self._fresh()
+        try:
+            self._run({"op": "setup", "owners": {"s.txt": "owner"},
+                       "contents": {"s.txt": "valuable"}}, d)
+
+            def one(i):
+                reqs = [{"op": "read", "actor": "owner", "asset": "s.txt",
+                         "request_id": "p%d" % i},
+                        {"op": "rotate_key"},
+                        {"op": "verify_log"}]
+                for req in reqs:
+                    p = self._run(req, d)
+                    if p.returncode != 0:
+                        return "rc=%d" % p.returncode
+                    out = p.stdout.decode()
+                    if "Traceback" in out or not out.strip():
+                        return "bad output: %r" % out[:80]
+                    json.loads(out)
+                return None
+
+            errs = []
+
+            def run_one(i):
+                err = one(i)
+                if err:
+                    errs.append(err)
+
+            threads = [threading.Thread(target=run_one, args=(i,))
+                       for i in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            self.assertEqual(errs, [])
+            # final state consistent: journal floor satisfied
+            from src import state as st
+            st.set_state_dir(d)
+            try:
+                state = st.load_state()
+                floor = st.journal_floor(state["service_dsa_pk"])
+                self.assertGreaterEqual(state["active_version"], floor[0])
+                self.assertTrue(dispatch({"op": "verify_log"})["valid"])
+            finally:
+                st.set_state_dir(None)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+class TestMsgIdBinding(QATest):
+    """msg_id is now derived+authenticated metadata (audit finding)."""
+
+    def setUp(self):
+        super().setUp()
+        dispatch({"op": "re_enroll", "device": "d1", "actor": "alice"})
+        dispatch({"op": "re_enroll", "device": "d2", "actor": "bob"})
+        r = dispatch({"op": "session_open", "sender": "alice",
+                      "recipient": "bob"})
+        dispatch({"op": "session_accept", "sid": r["sid"], "sender": "alice"})
+        self.sid = r["sid"]
+        self.msg = dispatch({"op": "message_send", "sid": self.sid,
+                             "plaintext": "payload"})
+
+    def _recv(self, **over):
+        req = {"sid": self.sid, "recipient": "bob", "sender": "alice",
+               "msg_id": self.msg["msg_id"], "counter": self.msg["counter"],
+               "nonce": self.msg["nonce"], "ciphertext": self.msg["ciphertext"]}
+        req.update(over)
+        return dispatch({"op": "message_receive", **req})
+
+    def test_renamed_msg_id_rejected(self):
+        r = self._recv(msg_id="a" * 24)
+        self.assertEqual(r["decision"], "reject")
+        self.assertEqual(r["reason"], "msg_id_mismatch")
+        self.assertNotIn("payload", json.dumps(r))
+
+    def test_genuine_msg_id_still_delivers_then_duplicates(self):
+        r = self._recv()
+        self.assertEqual(r["decision"], "deliver")
+        self.assertEqual(r["messages"][0]["plaintext"], "payload")
+        r = self._recv()      # same envelope again -> duplicate by derived id
+        self.assertEqual(r["decision"], "reject")
+        self.assertEqual(r["reason"], "duplicate_replay")
+
+    def test_cannot_bypass_duplicate_by_renaming(self):
+        self._recv()
+        r = self._recv(msg_id="b" * 24)   # rename a replay
+        self.assertEqual(r["decision"], "reject")
+        self.assertEqual(r["reason"], "msg_id_mismatch")
 
 
 if __name__ == "__main__":

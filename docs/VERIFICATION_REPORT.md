@@ -5,7 +5,7 @@ claim below was executed in this repository; nothing is asserted from
 design reading alone. Reproduce everything with:
 
 ```
-python3 -m unittest discover -s tests          # 83 tests
+python3 -m unittest discover -s tests          # 89 tests
 python3 demo.py                                # embedded, 48 steps
 python3 demo_networked.py                      # 6 real processes, 24 checks
 python3 detector.py --events practice/events.csv --labels practice/labels.csv --approvals practice/approvals.json
@@ -61,6 +61,27 @@ RFC 5869 HKDF on stdlib).
 
 ## Failures found in this audit (all fixed + regression-tested)
 
+0. **HIGH — Adapter-path crash of the detector op.**
+   `src/detector.py` returned `role_scopes` as Python SETS inside
+   `context_model`; `track4_service.py`'s `json.dumps` raised `TypeError`
+   -> exit 1, empty stdout, traceback on stderr. Fixed: sets are emitted
+   as sorted lists (`src/detector.py::evaluate_labelled`), and the adapter
+   now guarantees: valid JSON on stdout for EVERY input, no traceback on
+   stdout or stderr, plus a cross-process advisory file lock
+   (`adapter.lock`, fcntl) so concurrent adapter processes cannot
+   interleave read-modify-write cycles (verified with 6 parallel
+   `rotate_key` processes: log chain valid afterwards). Tests:
+   `TestAdapterEndpoint` (adapter detector op, no-traceback sweep,
+   8-thread process-level concurrency) in `tests/test_qa_gapfill.py`.
+0b. **MEDIUM — msg_id not authenticated.** The AEAD covered (sid, sender,
+   recipient, counter) but the caller-supplied `msg_id` was not, and the
+   duplicate set keyed on the caller's value. Fixed: `msg_id` is verified
+   against the DERIVED id `sha256(sid|counter)[:24]` (both inputs are
+   AEAD-bound), mismatches rejected as `msg_id_mismatch`, and the
+   duplicate set keys on the derived id — renaming a replay cannot bypass
+   duplicate detection. Tests: `TestMsgIdBinding` (3 tests); earlier
+   replay tests updated for the new (earlier, equally fail-closed) reason
+   string.
 1. **HIGH — Revocation gap in messaging.** `src/messaging.py`: a device revoked
    mid-session could keep sending; a revoked recipient could keep reading;
    a revoked peer could resume. Fixed: `_device_ok()` checks in
@@ -74,9 +95,11 @@ RFC 5869 HKDF on stdlib).
    (`src/state.py:112`), plus read-modify-write serialization:
    `STATE_LOCK` around `dispatch()` (`src/dispatch.py`), lock passed to
    `netutil.serve` (registry), per-node and per-endpoint handler locks
-   (`services/node_server.py`, `services/messenger_server.py`).
-   Test: `TestConcurrency` (threads rotating/revoking/reading/messaging —
-   invariants held: log valid, journal floor satisfied).
+   (`services/node_server.py`, `services/messenger_server.py`), and a
+   cross-process fcntl lock in `track4_service.py`. Tests:
+   `TestConcurrency` (threads rotating/revoking/reading/messaging -
+   invariants held: log valid, journal floor satisfied),
+   `TestAdapterEndpoint::test_concurrent_processes_serialize`.
 3. **MEDIUM — Error-text leak.** `src/dispatch.py` returned exception
    messages (`reason: "<text>"`) on unexpected failures — internal paths or
    state details could reach stdout. Fixed: `op_failed` now carries only
@@ -147,10 +170,18 @@ RFC 5869 HKDF on stdlib).
    fixes, evidence sheet, this report) — the git commit needs your
    explicit go-ahead; then push to the public repo.
 2. Re-run `python3 validate.py --entry .../track4_service.py` after the
-   messaging/lock changes (contract paths untouched, but confirm).
+   adapter hardening (contract ops verified manually; validator last
+   passed 23/23).
 3. Record the 5-minute demo video (three-node networked demo is the
    strongest footage); regenerate `Track4_Brief.pdf` with
    `DEMO_VIDEO_LINK="..." python3 scripts/make_brief_pdf.py`.
-4. Optional hardening: journal head anchor (anti-truncation), keyed state
-   manifest, TLS on services, `requirements.txt` pin review for the
-   judge container (`pqcrypto==0.4.0` compatibility test in CI).
+4. Encryption-at-rest for keys in state (version KEM secret keys,
+   identity keys, live session keys) - closes the at-rest plaintext
+   limitation (audit row: "Live session keys and KEM secret keys at
+   rest").
+5. Proof-of-possession on the embedded adapter's `actor` field IF the
+   organizer contract ever changes to untrusted callers - currently a
+   documented trust boundary (audit row 55: FAIL by design; the networked
+   nodes DO verify ML-DSA tokens).
+6. Optional hardening: journal head anchor (anti-truncation), keyed state
+   manifest, TLS on services, `pqcrypto==0.4.0` compatibility test in CI.

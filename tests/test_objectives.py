@@ -384,13 +384,14 @@ class TestMessaging(ObjectiveTest):
         r = self._recv(sid, bad)
         self.assertEqual(r["decision"], "reject")
         self.assertEqual(r["reason"], "authentication_failed")
-        # tampered counter (AAD mismatch) -> rejected
+        # tampered counter (AAD mismatch) -> rejected; the derived-msg_id
+        # check fires first because the counter changes the derived id
         r = dispatch({"op": "message_receive", "sid": sid,
                       "recipient": "user-blair", "sender": "user-alex",
                       "msg_id": m3["msg_id"], "counter": m3["counter"] + 1,
                       "nonce": m3["nonce"], "ciphertext": m3["ciphertext"]})
         self.assertEqual(r["decision"], "reject")
-        self.assertEqual(r["reason"], "authentication_failed")
+        self.assertIn(r["reason"], ("msg_id_mismatch", "authentication_failed"))
 
     def test_forward_secrecy(self):
         sid, send = self._establish()

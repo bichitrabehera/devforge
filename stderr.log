@@ -40,3 +40,9 @@ node node-a listening on 127.0.0.1:43889 (poll 0.50s)
 node node-b listening on 127.0.0.1:46399 (poll 2.00s)
 node node-c listening on 127.0.0.1:51549 (poll 4.00s)
 endpoint recv (user-blair) listening on 127.0.0.1:56709
+idp listening on 127.0.0.1:41257
+registry listening on 127.0.0.1:59817
+node node-c listening on 127.0.0.1:36503 (poll 4.00s)
+node node-b listening on 127.0.0.1:57353 (poll 2.00s)
+node node-a listening on 127.0.0.1:60649 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:56313
