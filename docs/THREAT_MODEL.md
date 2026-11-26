@@ -30,29 +30,35 @@
 
 ## Assumptions
 
-- The host running the service is not compromised during operation (the
-  process's own memory is trusted while it runs); we protect against
-  on-disk tampering, not live memory disclosure.
+- No process on the host is compromised **while it runs** (we protect
+  against on-disk tampering and network attackers, not live memory
+  disclosure of a healthy process).
+- The IdP is a separate OS process (identity integration is real: nodes
+  verify ML-DSA-signed tokens against its JWKS with the real clock); its
+  own compromise is out of scope of the node enforcement model.
+- The registry is the authoritative control plane; nodes converge to it by
+  polling (real eventual consistency) — an attacker who controls the
+  registry controls policy (documented trust anchor).
 - The organizer's `approvals.json` is an authentic authorization source.
-- The service's ML-DSA private key is generated on first `setup` and never
-  leaves the process; **it is not journaled** — recovering from total disk
-  loss requires a previously created signed backup.
-- The simulated clock and two-node delays are a faithful stand-in for real
-  propagation; events carry monotonic true time modulo documented offsets.
-- Backup storage is access-controlled; backups are signed but not
-  encrypted at rest.
+- Registry keys: the ML-DSA signing keypair lives in its own key file
+  (0600) outside the corruptible state file; revocation history survives
+  crashes via the durable journal.
+- Backup storage is access-controlled; backups are signed, not encrypted
+  at rest.
 
 ## Limits (honest boundaries)
 
-- Both messaging endpoints live in one process — a real deployment splits
-  them; the crypto design does not depend on this.
+- In networked mode, the receiving messaging endpoint is a separate
+  process with RAM-only keys; the sending side is a client library (a full
+  sender process is follow-on work).
 - Resumption secrets persist until the next resume; exposure of a session's
   *resumption* secret breaks that session's future resumption (documented),
   but never its past messages.
 - The detector's service graph and role scopes are static, documented
   constants; new legitimate edges must be added to the model (fail-closed:
   unknown edges raise alerts or annotations, not silence).
-- The audit log is unbounded in state; segment sealing/archival is future work.
+- Audit logs (registry and per-node) are unbounded; segment
+  sealing/archival is future work.
 - No protection against DoS or traffic analysis; out of scope for the
   sandbox.
 

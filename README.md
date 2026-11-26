@@ -38,7 +38,9 @@ automatically.
 ├── track4_service.py       JSON stdin/stdout service adapter (entry point)
 ├── team_app.py             compat shim -> src.dispatch.dispatch
 ├── detector.py             compat shim -> src.detector
-├── demo.py                 runnable end-to-end demonstration
+├── demo.py                 runnable end-to-end demonstration (embedded mode)
+├── demo_networked.py       REAL multi-process deployment demonstration
+├── services/               real processes: registry, IdP, nodes, messenger
 ├── requirements.txt        pinned dependencies
 ├── src/
 │   ├── state.py            persistence (atomic writes + durable journal), simulated clock
@@ -52,12 +54,82 @@ automatically.
 │   ├── dispatch.py         op registry (single entry point)
 │   └── demo.py             the scripted demonstration
 ├── tests/test_objectives.py  23 tests, one class per challenge objective
+├── tests/test_networked.py   6 integration tests over real localhost sockets
 ├── practice/               organizer sandbox data (events.csv, labels.csv, approvals.json)
 └── docs/
     ├── THREAT_MODEL.md     one-page threat model
     ├── PROJECT_BRIEF.md    USP, architecture, demo video link
     └── archive/            pre-rewrite audit notes
 ```
+
+## Adapter contract v1 compliance
+
+The organizer worker (`docs/adapter-v1.md` in the toolkit) drives exactly
+five ops against the root `track4_service.py`:
+
+- **setup** resets state and initializes from `owners`, `contents`,
+  `disabled`, and `key_material`. The sensitive `key_material` value is
+  stored only as a SHA-256 digest and never appears in any response or
+  diagnostic (validator check: "fake key stays out of output").
+- **read** returns `allow` with the exact stored body, or `deny` with no
+  content, and records the decision against `request_id`.
+- **revoke** is actor-based, persists across processes; other actors keep
+  their permissions.
+- **audit** returns the **recorded** decision for the supplied
+  `request_id` (not a re-evaluation).
+- **protected_read** (scored KEM interop, not covered by the public
+  validator): encapsulates against the caller's standard-Base64 raw
+  ML-KEM-768 public key; returns the ciphertext as standard Base64 and
+  `proof` = lowercase-hex HMAC-SHA256 keyed by the shared secret over the
+  UTF-8 bytes of `challenge + stored_body` (no separator). The shared
+  secret never leaves the application and is not persisted. Verified
+  end-to-end from the client side in `tests/test_contract.py`.
+
+Root-level `threat-model.json` declares `{"asset":
+"protected-resource", "boundary": "identity-check"}` (accurate for this
+design).
+
+Judging-container notes: Python 3.12 + `pqcrypto==0.4.0`, read-only root
+filesystem, no dependency installs during a run. All five contract ops run
+on stdlib + pqcrypto alone — HKDF-SHA256 is the RFC 5869 standard
+construction on `hmac`/`hashlib` (test-verified identical to
+`cryptography`'s HKDF), and AES-GCM (needed only by the messaging ops) is
+lazy-imported with a clean `aead_unavailable` failure if the package is
+absent. State persists in `$TRACK4_STATE_DIR` or the OS temp dir.
+
+## Networked deployment (real processes — nothing modeled)
+
+The embedded engine above is deterministic and testable, but the same core
+also runs as a REAL distributed system: separate OS processes over real TCP
+with real clocks:
+
+```
+registry (control plane) ── policy/keys/epochs served over HTTP
+idp (identity provider) ── issues ML-DSA-signed tokens, publishes /jwks.json
+node-a / node-b ── poll the registry at their own real intervals (0.5 s / 2 s);
+                    propagation delay is REAL network eventual consistency
+messaging endpoint ── session keys live in RAM only, never on disk
+```
+
+```bash
+# one command: spawns 5 processes, kills the registry with SIGKILL mid-rotation,
+# measures real revocation propagation, real grace cutoffs, real token expiry
+python3 demo_networked.py
+
+# or run each process by hand
+python3 services/registry_server.py --port 8300
+python3 services/idp_server.py --port 8400
+python3 services/node_server.py --name node-a --port 8310 \
+    --registry http://127.0.0.1:8300 --idp http://127.0.0.1:8400 --poll-interval 0.5
+python3 services/messenger_server.py --name recv --port 8320 \
+    --identity user-blair --peer user-alex
+```
+
+Real behaviors demonstrated: `kill -9` crash + journal replay on restart,
+per-node measured enforcement times, ML-DSA-JWT verification against the
+IdP's JWKS with real expiry, E2E delivery across real reordered/lost
+messages, tamper-evident per-node logs, and signed backup files stored
+outside the live state.
 
 ## Challenge checklist -> where it is implemented
 
@@ -92,14 +164,19 @@ automatically.
 
 ## Design decisions & honest limitations
 
-- **Simulated clock and nodes.** Timing behaviors (grace, propagation) use a
-  simulated clock and two in-process nodes with configurable sync delays so
-  results are deterministic and reproducible; a production system would use
-  signed state epochs and real node gossip.
-- **One-process endpoints.** Both messaging endpoints run in the same
-  service process; in a real deployment the session key would live only in
-  endpoint memory. Forward secrecy still holds in the model: the only secret
-  that could recover the session key is deleted before any exposure matters.
+- **Two modes, one codebase.** The embedded engine (single process,
+  simulated clock and nodes) powers deterministic tests and the organizer's
+  stdin/stdout validator. The networked deployment (`services/`,
+  `demo_networked.py`) runs the same core as real processes with real
+  clocks and real propagation; nothing in the networked path is simulated.
+- **Identity.** The IdP is a separate process issuing ML-DSA-65-signed
+  tokens; nodes verify against `/jwks.json` with real expiry. It is
+  OIDC-shaped (register/token/jwks) but self-hosted so the sandbox needs no
+  internet; swapping in an external OIDC provider would replace the token
+  format/verification, not the enforcement model.
+- **Propagation model.** Nodes poll the registry's policy endpoint; real
+  propagation delay = real poll interval + network latency, measured and
+  reported per node by the node itself.
 - **Backup trust anchor.** The manifest embeds the service ML-DSA public
   key. While the live key exists it must match (origin check). After total
   disk loss only integrity of the backup can be verified (the origin check
@@ -107,6 +184,11 @@ automatically.
 - **Detector context model.** Approvals authorize (subject, operation, role)
   inside a validity window; the service graph and role scopes are explicit,
   documented constants — no learning, no statistics, fully explainable.
-- **Log rotation.** The audit log is kept unbounded in state; a production
-  deployment would seal and archive segments (each sealed segment remains
-  independently verifiable by the same chain + signature scheme).
+- **Log rotation.** Audit logs (registry and per-node) are kept unbounded;
+  a production deployment would seal and archive segments (each sealed
+  segment remains independently verifiable by the same chain + signature
+  scheme).
+- **Messaging endpoints.** In networked mode the receiving endpoint is a
+  separate process holding session keys in RAM only; the sending side is
+  currently driven by a client (the demo driver). A full sender endpoint
+  process is straightforward follow-on work.

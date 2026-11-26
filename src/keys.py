@@ -52,19 +52,26 @@ def version_record(state, version):
 # --- ops --------------------------------------------------------------------
 
 def op_setup(request):
-    state = st.load_state()
-    if state["service_dsa_pk"]:
-        return {"status": "ok", "note": "already_initialized",
-                "service_fingerprint":
-                    crypto.fp(bytes.fromhex(state["service_dsa_pk"]))}
+    """Initialize from supplied data. Adapter contract: setup RESETS state
+    (a fresh container starts empty; setup resets practice state).
+
+    `key_material` is a synthetic sensitive value: it is stored ONLY as a
+    SHA-256 digest and is never returned, logged, or written in plaintext.
+    """
+    state = st.default_state()      # full reset per the contract
+    if request.get("grace_seconds") is not None:
+        state["grace_seconds"] = float(request["grace_seconds"])
     pk, sk = crypto.dsa_keypair()
     state["service_dsa_pk"] = pk.hex()
     state["service_dsa_sk"] = sk.hex()
-    if request.get("grace_seconds") is not None:
-        state["grace_seconds"] = float(request["grace_seconds"])
-    state["owners"] = request.get("owners", state["owners"])
-    state["roles"] = request.get("roles", state["roles"])
-    state["admins"] = request.get("admins", state["admins"])
+    state["owners"] = dict(request.get("owners", {}) or {})
+    state["roles"] = dict(request.get("roles", {}) or {})
+    state["admins"] = list(request.get("admins", ["user-admin"]))
+    state["disabled"] = list(request.get("disabled", []) or [])
+    key_material = request.get("key_material", "")
+    if key_material:
+        state["key_material_digest"] = crypto.sha256_hex(str(key_material))
+        # note: the value itself is never stored, returned, or logged
     for asset, body in (request.get("contents", {}) or {}).items():
         state["protected_data"][asset] = {
             "owner": state["owners"].get(asset, ""), "body": body}
@@ -73,12 +80,16 @@ def op_setup(request):
         node["key_version"] = v["version"]
         node["epoch_applied"] = state["revocation_epoch"]
     audit.append(state, "service", "setup", "service", "ok",
-                 detail="initialization", request_id=request.get("request_id", ""))
+                 detail="state reset and initialized; key material kept "
+                        "as digest only",
+                 request_id=request.get("request_id", ""))
     st.save_state(state)
     return {"status": "ok", "ready": True, "active_version": v["version"],
             "grace_seconds": v["cutoff_at"] - v["created_at"],
             "service_fingerprint": crypto.fp(pk),
-            "nodes": list(state["nodes"])}
+            "nodes": list(state["nodes"]),
+            "disabled_count": len(state["disabled"]),
+            "key_material_stored": "sha256-digest-only"}
 
 
 def op_status(request):

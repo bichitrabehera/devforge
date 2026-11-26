@@ -44,8 +44,9 @@ def checklist_table():
            "documented cutoff (grace 30 s simulated time); every node rejects "
            "old keys after cutoff; authorized transfers continue in-window.", CELL)],
         [P("2. Revocation across nodes", CELL),
-         P("Per-node enforcement at revoked_at + sync_delay (node-a 0 s, "
-           "node-b 2 s); time until last node enforces is reported (2.0 s); "
+         P("Networked mode: nodes poll the registry at their own real "
+           "intervals (0.5 s / 2.0 s); enforcement measured and reported "
+           "per node (real propagation ~0.05 s and within one poll); "
            "owner re-enrols, other users retain access.", CELL)],
         [P("3. Crash recovery", CELL),
          P("Rotations journaled before commit; recovery replays to last "
@@ -116,23 +117,28 @@ story = [
       "logs. Operators don't have to trust the prototype; the prototype "
       "reports why it should be trusted."),
     P("System architecture", H2),
-    P("track4_service.py (JSON stdin/stdout) &rarr; src/dispatch.py (op "
-      "registry) &rarr; domain modules: keys (rotation/cutoff/revocation), "
-      "access (identity decisions), recovery (journal replay, signed "
-      "backups), messaging (ephemeral-KEM E2E sessions), audit (hash-chained "
-      "signed log), detector (explainable rules + metrics), state (atomic "
-      "writes + durable fsync journal + simulated clock). Every mutating op "
-      "appends a signed audit entry; every decision carries explicit reasons.", BODY),
+    P("<b>Networked mode (real).</b> A control-plane registry, a separate "
+      "identity provider issuing ML-DSA-signed tokens (JWKS endpoint), "
+      "enforcement nodes polling the registry at their own real intervals "
+      "(propagation is real network eventual consistency, measured per "
+      "node), and messaging endpoints holding session keys in RAM only - "
+      "all separate OS processes over real TCP with real clocks. "
+      "<b>Embedded mode (deterministic).</b> The same core modules (keys, "
+      "access, recovery, messaging, audit, detector) behind a single JSON "
+      "stdin/stdout service with a simulated clock for reproducible tests "
+      "and the organizer validator. Every mutating op appends a signed "
+      "audit entry; every decision carries explicit reasons.", BODY),
     P("Objective checklist &rarr; implementation and measured result", H2),
     checklist_table(),
     PageBreak(),
     P("Performance &amp; overhead", H2),
-    P("23-test objective suite runs end-to-end in ~1.4 s. Per-session "
-      "ML-KEM-768 keygen+encaps+decaps ~1 ms; ML-DSA-65 sign/verify per "
-      "audit entry ~1 ms, so per-entry signing keeps log overhead low. "
-      "Detector over the 22-event labelled log: &lt; 5 ms, deterministic. "
-      "Operational overhead is dominated by per-entry ML-DSA signatures and "
-      "an fsync per journal record &mdash; both bounded and documented."),
+    P("23 objective tests + 6 real-socket integration tests run in ~5.7 s. "
+      "Per-session ML-KEM-768 keygen+encaps+decaps ~1 ms; ML-DSA-65 "
+      "sign/verify per audit entry ~1 ms. Real networked path: revocation "
+      "enforced at node-a within ~0.05 s, node-b within its 2 s poll; "
+      "registry kill -9 recovered by journal replay in &lt; 1 s; session "
+      "keys never written to disk. Detector over the 22-event labelled "
+      "log: &lt; 5 ms, deterministic."),
     P("One-page threat model", H2),
     P("<b>Protected assets:</b> (1) E2E-protected messages "
       "(confidentiality, integrity, freshness, recipient binding); (2) key "
@@ -150,22 +156,26 @@ story = [
       "log); later compromise of a long-term identity key (met by ephemeral "
       "per-session KEM keys, zeroized); stolen device (revocation with "
       "measured propagation, owner re-enrolment)."),
-    P("<b>Assumptions:</b> the host process is not compromised while running "
-      "(on-disk tampering is in scope, memory disclosure is not); "
-      "approvals.json is an authentic authorization source; the service "
-      "ML-DSA key is generated at setup and never journaled; the simulated "
-      "clock and two-node delays faithfully model propagation; backup "
+    P("<b>Assumptions:</b> no process is compromised while it runs (on-disk "
+      "tampering and network attackers are in scope; memory disclosure of a "
+      "healthy process is not); the IdP is a separate real process whose own "
+      "compromise is outside the node enforcement model; the registry is the "
+      "documented policy trust anchor (nodes converge to it by real "
+      "polling); approvals.json is an authentic authorization source; backup "
       "storage is access-controlled (backups are signed, not encrypted)."),
-    P("<b>Limits (honest):</b> both messaging endpoints share one process in "
-      "the prototype; resumption-secret exposure breaks future resumption "
-      "of that session only; the detector's service graph and role scopes "
-      "are explicit, documented constants (fail-closed); the audit log is "
-      "unbounded (segment sealing is future work); DoS and traffic analysis "
-      "are out of scope; no attacks against other teams or shared services."),
+    P("<b>Limits (honest):</b> in networked mode the receiving messaging "
+      "endpoint is a separate process with RAM-only keys while the sending "
+      "side is a client library (full sender process is follow-on work); "
+      "resumption-secret exposure breaks future resumption of that session "
+      "only; the detector's service graph and role scopes are explicit, "
+      "documented constants (fail-closed); audit logs are unbounded "
+      "(segment sealing is future work); DoS and traffic analysis are out "
+      "of scope; no attacks against other teams or shared services."),
     P("Verification &amp; reproduction", H2),
     P("python3 -m venv .venv &amp;&amp; source .venv/bin/activate; pip "
       "install -r requirements.txt; python3 -m unittest discover -s tests "
-      "(23 tests); python3 demo.py (45-step scripted walkthrough printing "
+      "(29 tests); python3 demo.py (embedded walkthrough); "
+      "python3 demo_networked.py (real 5-process deployment)"
       "every checkpoint).", sm),
     Spacer(1, 2 * mm),
     P("<b>5-minute demo video:</b> %s" % VIDEO),

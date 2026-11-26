@@ -46,11 +46,12 @@ HKDF-SHA256, AES-256-GCM) — no custom primitives, no AI/ML in detection
 ```
 
 **Trust flow.** Every mutating op writes a structured entry to the signed,
-hash-chained audit log. Every decision (allow/deny) carries explicit
-reasons. Rotations are journaled before they commit; revocations bump a
-monotonic epoch; nodes enforce versions and epochs with configurable
-propagation delays. Backups are ML-DSA-signed manifests over hashed
-payloads, stored outside the live state file.
+hash-chained audit log. Every decision carries explicit reasons. Rotations
+are journaled before they commit; revocations bump a monotonic epoch; nodes
+enforce versions and epochs on their own real poll schedules (networked
+mode) or against the simulated clock (embedded mode). Backups are
+ML-DSA-signed manifests over hashed payloads, stored outside the live state
+file.
 
 ## Objective checklist (verified by `tests/test_objectives.py`)
 
@@ -81,12 +82,16 @@ payloads, stored outside the live state file.
 12. **Session resumption** — HMAC-bound to the authenticated peer; key
     ratchets on resume; same sid with a different identity is rejected.
 
-## Performance & overhead (measured on the sandbox)
+## Performance & overhead (measured)
 
-- 23-test objective suite: ~1.4 s end-to-end.
+- 29-test suite (23 objective + 6 real-socket integration): ~5.7 s
+  end-to-end.
 - ML-KEM-768 keygen+encaps+decaps per session: ~1 ms; ML-DSA-65
   sign/verify per audit entry: ~1 ms — log overhead stays low even with
   per-entry signatures.
+- Real networked path: revocation enforced at node-a within ~0.05 s and
+  node-b within its 2 s poll; registry `kill -9` recovery via journal
+  replay in < 1 s; session keys never written to disk.
 - Detector over the 22-event labelled log: < 5 ms, fully deterministic.
 
 ## Demo video

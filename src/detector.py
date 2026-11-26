@@ -104,8 +104,8 @@ def approval_matches(approvals, probe):
         if ch.get("valid_from_utc"):
             if at < _parse_ts(ch["valid_from_utc"]):
                 continue
-            if at > _parse_ts(ch["valid_until_utc"]):
-                continue
+            if at >= _parse_ts(ch["valid_until_utc"]) and ch.get("valid_until_utc"):
+                continue    # valid_until_utc is EXCLUSIVE per the dataset spec
         if ch.get("effective_at_utc") and at < _parse_ts(ch["effective_at_utc"]):
             continue
         return True
@@ -147,12 +147,18 @@ def evaluate_labelled(events_path=None, labels_path=None, approvals_path=None,
     norm.sort(key=lambda e: e["_true_time"])
 
     # Pass 1: classify privilege changes and access edges.
-    unexpected_change = {}     # session_id -> event
-    session_unknown = {}       # session_id -> [events]
+    # Group by actor + session + correlation id per the practice procedure;
+    # fall back to session id alone when correlation id is absent.
+    def _group(e):
+        sid = e.get("session_id", "") or "no-session"
+        corr = e.get("correlation_id", "") or sid
+        return "%s|%s" % (sid, corr)
+    unexpected_change = {}     # group -> event
+    session_unknown = {}       # group -> [events]
     annotations = []
     order_uncertain = []
     for e in norm:
-        sid = e.get("session_id", "")
+        sid = _group(e)
         action = e.get("action", "")
         actor = e.get("actor", "")
 
@@ -252,7 +258,7 @@ def evaluate_labelled(events_path=None, labels_path=None, approvals_path=None,
              "approval (checked subject, operation, role, validity window)"
              % (e["actor"], e.get("role_before"), e.get("role_after"), sid))
         for e2 in norm:
-            if e2.get("session_id") == sid and e2["_true_time"] > e["_true_time"] \
+            if _group(e2) == sid and e2["_true_time"] > e["_true_time"] \
                     and e2.get("action") == "read" \
                     and e2.get("outcome") in ("allow", "success"):
                 emit(e2, "review_after_role_change", [e, e2],
@@ -267,12 +273,16 @@ def evaluate_labelled(events_path=None, labels_path=None, approvals_path=None,
                 path = " -> ".join(["%s->%s" % (x["source_service"],
                                                 x["target_service"])
                                     for x in edges])
+                outcomes = sorted({x.get("outcome", "") for x in edges})
                 emit(e, "lateral_movement", edges,
-                     "identity=%s traversed unusual service path [%s] in "
-                     "session %s using valid credentials; edges are outside "
-                     "the documented service graph and role scopes "
-                     "(first edge %s)"
-                     % (e["actor"], path, sid, first))
+                     "CANDIDATE lateral movement: identity=%s traversed an "
+                     "unusual service path [%s] in session %s / flow %s "
+                     "(outcomes: %s); edges are outside the documented "
+                     "service graph and role scopes. This sequence does not "
+                     "establish successful access or compromise (first edge "
+                     "%s)"
+                     % (e["actor"], path, sid, e.get("correlation_id", ""),
+                        ",".join(outcomes), first))
 
     # Metrics against ground truth.
     tp = fp = fn = 0

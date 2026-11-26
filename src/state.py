@@ -113,6 +113,8 @@ def default_state():
         "sessions": {},               # sid -> session record
         "seen_msg_ids": {},           # recipient -> [msg ids] (replay rejection)
         "inbox": {},                  # recipient -> [delivery failures]
+        "decisions": {},              # request_id -> recorded decision
+        "key_material_digest": None,  # sha256 of setup key_material
         "log": [],                    # audit entries (hash chain + signed)
         "log_prev_hash": "0" * 64,
         "backups": {},                # backup_id -> signed backup blob

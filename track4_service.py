@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def run_service():
     try:
-        raw = sys.stdin.readline()
-        if not raw:
+        raw = sys.stdin.read()      # contract: one JSON object through EOF
+        if not raw.strip():
             _emit({"status": "error", "message": "no_input"})
             return 0
         request = json.loads(raw)

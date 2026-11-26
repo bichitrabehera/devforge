@@ -77,6 +77,7 @@ _OPS = {
     "advance_time": _op_advance_time,
     "read": access.op_read,
     "audit": access.op_audit,
+    "protected_read": access.op_protected_read,
     "grant_role": access.op_grant_role, "revoke_role": access.op_revoke_role,
     "disable": keys.op_disable,
     # key lifecycle

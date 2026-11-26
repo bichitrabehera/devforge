@@ -19,11 +19,12 @@ from . import crypto
 from . import state as st
 
 
-def append(state, actor, action, asset, decision, detail="", request_id=""):
+def append(state, actor, action, asset, decision, detail="", request_id="",
+           ts=None):
     seq = len(state["log"]) + 1
     entry = {
         "seq": seq,
-        "ts": st.now(),
+        "ts": st.now() if ts is None else ts,
         "actor": actor,
         "action": action,
         "asset": asset,
