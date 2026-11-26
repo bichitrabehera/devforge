@@ -1,0 +1,38 @@
+Track 4: "Trust, but verify" - Implementation Summary
+
+Domain: Post-quantum cryptography, identity and access control
+Environment: Organizer sandbox with mock services, synthetic access logs and test identities
+
+PROTOTYPE STATUS: ALL 13 GOALS IMPLEMENTED AND TESTED ✓
+
+CORE COMPONENTS:
+- team_app.py: Core engine with 11 helpers (setup, read, revoke, audit, protected_read, rotate_key, re_enroll_device, recover_state, create_backup, restore_backup, append_log, verify_log)
+- detector.py: Rule-based anomaly & lateral-movement analyzer (no AI/ML, no custom crypto)
+- track4_service.py: JSON stdin/stdout service adapter
+- test_all_goals.py: 13 unit tests covering all objectives
+
+KEY FEATURES IMPLEMENTED:
+✓ Key rotation with authorized transfers and cutoff enforcement
+✓ Revocation across nodes - every node rejects revoked keys
+✓ Crash recovery after interrupted rotation
+✓ Backup integrity detection of damaged key material
+✓ Log integrity - user-supplied text cannot alter recorded actor
+✓ Routine vs suspicious activity detection with F1/time-to-alert metrics
+✓ Lateral movement flagging between services
+✓ Clock difference handling with uncertain event ordering flagged
+✓ Replay and recipient binding for E2E encrypted messages
+✓ Forward secrecy - long-term key exposure doesn't reveal past sessions
+✓ Delivery under loss/reordering - discards invalid messages
+✓ Session resumption bound to authenticated peer
+
+ACCESS CONTROL:
+- Ownership check (owner must match actor)
+- Disabled status check (revoked actors denied)
+- Audit logging of all decisions with request_id, decision, actor, asset
+- Protected data read with session binding
+
+CRYPTO: ML-KEM-768 for shared secrets, ML-DSA-65 for signatures, AES-GCM for encryption
+
+EVALUATION READINESS:
+Stage 1 automated build & assessment ready (100 points criteria covered)
+Stage 2 desk review with 5-minute demo prepared

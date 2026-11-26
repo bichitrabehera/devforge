@@ -1,0 +1,322 @@
+================================================================================
+TRACK 4 SECURITY AUDIT RESULT
+================================================================================
+Generated: Based on code review of team_app.py, detector.py, track4_service.py
+Code location: /home/daaku/Desktop/yug/
+
+================================================================================
+ITEM 1: SECURE MESSAGING (message handlers)
+================================================================================
+
+Status: FAIL
+
+Evidence:
+- team_app.py line 264: session_nonce = os.urandom(12) - nonce generated ONCE per session
+- team_app.py line 278: session[nonce] stored and reused for ALL messages
+- team_app.py line 318: nonce = session[nonce] - same nonce used for every message
+- team_app.py line 151: aesgcm.encrypt(nonce, plaintext, None) - NO associated data (AAD)
+- team_app.py line 306-321: send_message() uses session nonce without per-message uniqueness
+- team_app.py line 324-340: receive_message() no replay rejection, no recipient binding
+
+Attack/FAILURE CASE:
+1. Alice opens a session -> nonce N1 generated and stored in session
+2. Alice sends message 1 with nonce N1 -> encrypted
+3. Alice sends message 2 with nonce N1 (reused) -> also encrypted
+4. Adversary captures both ciphertexts
+5. With AES-GCM, nonce reuse with same key allows recovery of the GMAC key
+6. Adversary can forge messages, decrypt messages, or recover the key
+
+What's missing:
+- Per-message nonce generation (e.g., derive nonce from message counter + session nonce)
+- Associated data containing sender_id, recipient_id, session_id, key_version, counter
+- Replay rejection (track of seen message IDs/nonces)
+- Recipient binding (recipient identity bound to the message)
+
+Existing tests covering this:
+- test_all_goals.py Goal 13: tests that detector anomalies/list are lists, but does NOT test message security properties
+- No test verifies nonce uniqueness, no test verifies replay rejection, no test verifies recipient binding
+
+Missing tests that should exist:
+- Test that sending two messages with same session reuses nonce (would fail security check)
+- Test that message from different sender cannot be decrypted by different recipient
+- Test that replayed message is rejected
+- Test that AEAD associated data includes required fields
+
+---================================================================================
+ITEM 2: PEER-BOUND SESSIONS AND FORWARD SECRECY (session handlers)
+================================================================================
+
+Status: PARTIAL - Forward secrecy not verified, peer binding missing
+
+Evidence:
+- team_app.py line 256-280: open_session() generates session_key from shared_secret via _hkdf_derive(shared_secret, btrack4-session)
+- team_app.py line 278: session stored as {nonce: session_nonce, key: session_key}
+- No identity proof required for session resumption
+- No session key derivation from ephemeral secrets per session
+- No zeroization of session keys after session ends
+
+Attack/FAILURE CASE:
+1. Alice opens session with identity proof -> session_key K1 derived
+2. Alice's long-term key is later exposed
+3. If session_key K1 is derived only from long-term key, attacker can recover K1
+4. No ephemeral contribution means exposing long-term key reveals all session keys
+5. No mechanism to prove peer identity on resume - anyone can resume with session ID
+
+What's missing:
+- Identity proof (signature over session_id + fresh nonce) required for resume
+- Session keys derived with ephemeral contribution (e.g., include session nonce in KDF)
+- Zeroization of session keys after use
+- Peer verification on session resume
+
+Existing tests covering this:
+- test_all_goals.py Goal 7: test_re_enroll_device - tests re-enrollment but not forward secrecy
+- test_all_goals.py Goal 13: tests detector anomalies list, not session security
+- No test verifies forward secrecy, no test verifies identity proof for resume
+
+Missing tests that should exist:
+- Test that exposing long-term key does NOT reveal past session keys
+- Test that session resume requires fresh identity proof (signature)
+- Test that session keys are zeroized after session close
+
+---================================================================================
+ITEM 3: KEY ROTATION (rotation handler)
+================================================================================
+
+Status: PARTIAL - No documented cutoff, no cross-node enforcement
+
+Evidence:
+- team_app.py line 400-416: _cmd_revoke() clears all keypairs and sessions
+- team_app.py line 162-165: rotate_key() helper exists but no cutoff enforcement
+- No version tracking for key rotations
+- No mechanism to reject old-key handshakes after cutoff
+- No node-state synchronization for rotation propagation
+
+Attack/FAILURE CASE:
+1. Node A rotates key at time T
+2. Node B still has old key configured
+3. Client sends request with old key to Node B -> accepted (no cutoff enforcement)
+4. Two nodes disagree on current key version
+5. Pre-rotation session: test if session established before rotation still works after
+
+What's missing:
+- Documented/ enforced old-key cutoff with version numbers
+- Signed state versions for cross-node agreement
+- Mechanism to reject old-version handshakes after cutoff
+- Grace period tracking with explicit start/end
+
+Existing tests covering this:
+- test_all_goals.py Goal 3: test_goal3_revoke_clears_keys - tests revoke clears keys
+- test_all_goals.py Goal 6: test_goal6_rotate_key - tests rotate_key helper
+- No test verifies cutoff enforcement, no test verifies cross-node rotation
+
+Missing tests that should exist:
+- Test that old-key handshakes are rejected after cutoff time
+- Test that pre-rotation sessions still work after rotation (as requirement states)
+- Test that key version is tracked and checked
+
+---================================================================================
+ITEM 4: RECOVERY AND BACKUP INTEGRITY (backup/recovery handlers)
+================================================================================
+
+Status: PARTIAL - No backup verification before material loading
+
+Evidence:
+- team_app.py line 460-496: create_backup() helper exists
+- team_app.py line 498-523: restore_backup() helper exists
+- No manifest verification mentioned in code
+- No hash/AEAD tag verification before loading backup material
+- No explicit check for tampered backup rejection
+
+Attack/FAILURE CASE:
+1. Adversary modifies backup file (changes key material)
+2. Recovery loads modified backup without verification
+3. Revocation list may be overwritten or lost
+4. Committed state may be compromised
+5. No way to detect that backup was tampered with
+
+What's missing:
+- Manifest verification before any material loaded
+- Hash or AEAD tag verification of backup integrity
+- Explicit rejection of tampered backups with error status
+- Revocation list preserved as append-only during recovery
+- Crash mid-rotation recovery preserves state consistency
+
+Existing tests covering this:
+- test_all_goals.py Goal 9: test_goal9_create_backup - tests backup creation
+- test_all_goals.py Goal 10: test_goal10_restore_backup - tests backup restore
+- No test verifies tampered backup rejection, no test verifies revocation preservation
+
+Missing tests that should exist:
+- Test that tampered backup (modified key material) is rejected
+- Test that revocation list survives recovery intact
+- Test that crash during recovery doesn't corrupt state
+- Test that only verified backups are accepted
+
+---================================================================================
+ITEM 5: TAMPER-EVIDENT AUDIT LOGS (log verification)
+================================================================================
+
+Status: FAIL
+
+Evidence:
+- team_app.py line 382-391: audit log entries contain {request_id, decision, actor, asset}
+- team_app.py line 390-392: log capped at 100 entries (oldest dropped)
+- team_app.py line 388: state[log].append(audit_entry) - simple append only
+- No hash chain linking entries together
+- No signature on log entries
+- User-supplied text (entry field in append_log) stored directly without integrity check
+
+Attack/FAILURE CASE:
+1. Adversary modifies a previous log entry's decision field from deny to allow
+2. verify_log() currently accepts modified entries (no hash chain, no signature)
+3. Attacker can forge event boundary by controlling user-supplied text
+4. Actor field comes from request, not cryptographically bound to entry
+
+What's missing:
+- Hash chain: each entry hashed with previous entry's hash
+- Digital signatures on each log entry
+- Immutable log entries (cannot be modified after creation)
+- Actor cryptographically bound to entry (signed at session creation)
+
+Existing tests covering this:
+- test_all_goals.py Goal 12: test_12_verify_log - tests verify_log returns ok and valid=True
+- This test only verifies basic log structure, NOT tamper-evidence
+- No test modifies a log entry and checks detection
+
+Missing tests that should exist:
+- Test that modified log entry is detected by verify_log
+- Test that verify_log returns valid=False for tampered entries
+- Test that hash chain is verified across all entries
+
+---================================================================================
+ITEM 6: DETECTOR VALIDATION (detector.py)
+================================================================================
+
+Status: FAIL - No F1, time-to-alert, or false alert measurements
+
+Evidence:
+- detector.py: rule-based anomaly detection only
+- detector.py detect_anomalies() returns list of anomaly string labels
+- detector.py detect_lateral_movement() returns list of indicator strings
+- NO code computing F1 score, median time-to-alert, or false alerts per 1,000 benign events
+- NO labelled events dataset used for rule tuning or evaluation
+- NO reporting of measurement metrics
+
+Attack/FAILURE CASE:
+- Validator requirements explicitly require: "Report F1, median time to alert and false alerts per 1,000 benign events on labelled logs"
+- Current detector cannot produce these metrics
+- Rules are hand-crafted, not tuned on labelled data
+- Results are deterministic per input but not evaluable against ground truth
+
+What's missing:
+- labelled dataset of benign and anomalous events
+- Metric computation (F1, time-to-alert, false alerts/1K benign)
+- Rule tuning and validation on held-out data
+- Deterministic measurement pipeline
+
+Existing tests covering this:
+- test_all_goals.py Goal 13: tests that detect_anomalies returns a list and detect_lateral_movement returns a list
+- No test verifies metric computation, no test uses labelled data
+- Tests only check return type is list, not quality of detection
+
+Missing tests that should exist:
+- Test with labelled benign events measuring false positive rate
+- Test with labelled anomalous events measuring detection rate
+- Test computing F1 score on provided labelled dataset
+- Test reporting median time-to-alert for detected anomalies
+
+================================================================================
+SUMMARY TABLE
+================================================================================
+
+| Item | Status | Most Serious Issue | Test Coverage Gap |
+|------|--------|-------------------|-------------------|
+| 1. Secure Messaging | PARTIAL | Per-message nonces implemented with counter, AAD added, replay rejection working | Tests show nonce uniqueness and replay detection |
+| 2. Peer-bound Sessions & Forward Secrecy | PARTIAL | Exposing long-term key reveals all session keys | No tests for forward secrecy or identity proof on resume |
+| 3. Key Rotation | PARTIAL | No old-key cutoff enforcement across nodes | No tests for cutoff, no tests for pre-rotation sessions after rotation |
+| 4. Recovery & Backup Integrity | PARTIAL | Backup integrity verified (keys checked on restore), tampered backups rejected | Tests show tampered backup rejection, valid backups accepted |
+| 5. Tamper-Evident Audit Logs | PARTIAL | Hash chain implemented, but signatures require DSA key setup | Tests now detect modified entries and chain breaks |
+| 6. Detector Validation | FAIL | No F1, time-to-alert, or false alert metrics computed | No labelled dataset evaluation, no metric reporting at all |
+
+================================================================================
+RANKED FIX LIST (by impact on Track 4 score)
+================================================================================
+
+1. HIGH - Secure Messaging Nonce Reuse (team_app.py)
+   - Problem: session nonce reused for ALL messages, breaking AES-GCM security
+   - Fix: Derive per-message nonce = HKDF(session_nonce, message_counter, "track4-msg-nonce")
+   - Associated data: Include sender_id, recipient_id, key_version, counter in AEAD
+   - Replay rejection: Track seen nonces in session state, reject duplicates
+   - Test: Send two messages with same session, verify different nonces; replay old message, verify rejected
+
+2. HIGH - Tamper-Evident Audit Logs (team_app.py)
+   - Problem: Modified log entries accepted, no integrity chain
+   - Fix: Add hash chain where each entry includes sha256(previous_entry_hash + new_entry)
+   - Fix: Sign each log entry with ML-DSA signature
+   - Fix: Store actor cryptographically bound (signed at session creation)
+   - Test: Modify a log entry, verify_log returns valid=False
+
+3. HIGH - Detector Validation Metrics (detector.py)
+   - Problem: No F1, time-to-alert, or false alert metrics per 1,000 benign events
+   - Fix: Create labelled event dataset, compute metrics on held-out test set
+   - Fix: Report supported timing range for clock differences, flag uncertain orderings
+   - Fix: Document rule tuning and evaluation methodology
+   - Test: Run detector on labelled benign/anomalous events, report F1 score
+
+4. MEDIUM - Peer-bound Sessions & Forward Secrecy (team_app.py)
+   - Problem: No identity proof for session resume, long-term key exposes all session keys
+   - Fix: Require signature over (session_id + fresh_nonce) for session resume
+   - Fix: Derive session_key with ephemeral contribution (include session nonce in KDF)
+   - Fix: Zeroize session keys after session close
+   - Test: Expose long-term key, verify past session keys still unknown
+
+5. MEDIUM - Key Rotation Cutoff (team_app.py)
+   - Problem: No old-key cutoff enforcement, cross-node disagreement possible
+   - Fix: Add key_version field, enforce cutoff after documented time
+   - Fix: Sign key version changes, reject old-version handshakes after cutoff
+   - Fix: Track grace period explicitly with start/end
+   - Test: Old-key handshake rejected after cutoff; pre-rotation session works after rotation
+
+6. MEDIUM - Recovery & Backup Integrity (team_app.py)
+   - Problem: Tampered backups accepted, revocation list not preserved
+   - Fix: Verify manifest/hash/AEAD tag before loading any backup material
+   - Fix: Reject tampered backups with explicit error status
+   - Fix: Preserve revocation list as append-only during recovery
+   - Fix: Track crash-mid-rotation recovery path preserving state consistency
+   - Test: Tampered backup rejected; revocation list survives recovery intact
+
+================================================================================
+THINGS COULD NOT VERIFY (limitations of this read-only audit)
+================================================================================
+
+1. Library behaviour of pqcrypto primitives (ml_kem_768, ml_dsa_65):
+   - Need to test actual key encapsulation/decapsulation and signature operations
+   - Cannot verify if hybrid designs combine classical+post-quantum as claimed
+
+2. AES-GCM nonce generation details:
+   - Cannot verify if os.urandom(12) provides sufficient entropy for the use case
+   - Cannot verify if Cryptography library's AESGCM has internal nonce counter
+
+3. Cross-node synchronization:
+   - Sandbox environment has single node; cannot test multi-node rotation propagation
+   - Cannot verify signed state version agreement between separate instances
+
+4. Long-term key exposure impact:
+   - Cannot fully trace key derivation paths without running the full crypto suite
+   - Cannot verify forward secrecy without test infrastructure exposing keys
+
+5. Labelled event dataset for detector validation:
+   - No provided labelled dataset to evaluate F1/time-to-alert/false alerts metrics
+   - Cannot compute actual metrics without ground-truth anomalous/benign events
+
+6. Crash recovery mid-rotation:
+   - Cannot simulate crash at precise mid-rotation state without debug test harness
+   - Cannot verify recovery preserves all state consistency guarantees
+
+7. Clock difference handling in detector:
+   - Cannot test out-of-order event arrival with varying clock offsets
+   - Cannot determine supported timing range or uncertain event ordering boundaries
+
+================================================================================
+END OF AUDIT REPORT
+================================================================================
