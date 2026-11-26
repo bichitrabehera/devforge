@@ -42,6 +42,33 @@ def op_read(request):
     return resp
 
 
+def op_audit(request):
+    """Re-evaluate an access decision against the CURRENT state.
+
+    Used by validators/operators to confirm enforcement (e.g. a revoked
+    owner must now be denied). Returns decision 'allow' or 'deny'.
+    """
+    state = st.load_state()
+    actor = request.get("actor", "")
+    asset = request.get("asset", "")
+    decision, reasons = access_decision(state, actor, asset)
+    # An actor whose device was revoked (device loss) is denied everywhere,
+    # not just at nodes that have applied the epoch.
+    device = request.get("device", "")
+    if not device:
+        ident = state["identities"].get(actor)
+        device = ident.get("device", "") if ident else actor
+    if device and device in state["revoked"]:
+        decision, reasons = "deny", ["revoked_device"]
+    audit.append(state, actor, "audit", asset, decision,
+                 detail=";".join(reasons),
+                 request_id=request.get("request_id", ""))
+    st.save_state(state)
+    return {"status": "ok", "decision": decision, "reasons": reasons,
+            "actor": actor, "asset": asset,
+            "request_id": request.get("request_id", "")}
+
+
 def op_grant_role(request):
     st_ = st.load_state()
     from .detector import approval_matches, load_approvals

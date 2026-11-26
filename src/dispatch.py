@@ -76,13 +76,14 @@ _OPS = {
     "setup": keys.op_setup, "status": keys.op_status,
     "advance_time": _op_advance_time,
     "read": access.op_read,
+    "audit": access.op_audit,
     "grant_role": access.op_grant_role, "revoke_role": access.op_revoke_role,
     "disable": keys.op_disable,
     # key lifecycle
     "rotate_key": keys.op_rotate_key, "authenticate": keys.op_authenticate,
     "node_status": keys.op_node_status, "node_sync": keys.op_node_sync,
     "revoke": keys.op_revoke, "revoke_report": keys.op_revoke_report,
-    "re_enroll": keys.op_re_enroll,
+    "re_enroll": keys.op_re_enroll, "re_enroll_device": keys.op_re_enroll,
     # crash recovery / backups
     "begin_rotation": recovery.op_begin_rotation,
     "crash_rotation": recovery.op_crash_rotation,

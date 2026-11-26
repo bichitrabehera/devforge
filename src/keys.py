@@ -222,10 +222,25 @@ def op_node_sync(request):
 
 
 def op_revoke(request):
-    """Revoke a device (device loss). Other users keep access; the owner can
-    re-enrol.  Propagation to every node is measured and reported."""
+    """Revoke a device (device loss) and/or an actor's device.
+
+    Accepts either `device` or `actor` (revoke resolves the actor's
+    registered device). The actor's identity is disabled as well, so every
+    node denies them immediately; propagation to every node is measured and
+    reported. Other users keep access; the owner can re-enrol later.
+    """
     state = st.load_state()
     device = request.get("device", "")
+    actor = request.get("actor", "") or request.get("user", "") \
+        or request.get("subject", "")
+    if not device and actor:
+        # resolve the actor's device (identity records register one)
+        ident = state["identities"].get(actor)
+        device = ident.get("device", "") if ident else actor
+    if not device:
+        device = actor or "unknown-device"
+    if actor and actor not in state["disabled"]:
+        state["disabled"].append(actor)
     if device not in state["revoked"]:
         state["revocation_epoch"] += 1
         state["revoked"][device] = {"revoked_at": st.now(),
@@ -240,11 +255,11 @@ def op_revoke(request):
                    for name, node in state["nodes"].items()}
     last_node = max(enforcement, key=enforcement.get)
     audit.append(state, request.get("admin", "user-admin"), "revoke", device,
-                 "ok", detail="epoch=%d" % rev["epoch"],
+                 "ok", detail="epoch=%d actor=%s" % (rev["epoch"], actor),
                  request_id=request.get("request_id", ""))
     st.save_state(state)
-    return {"status": "ok", "device": device, "epoch": rev["epoch"],
-            "revoked_at": rev["revoked_at"],
+    return {"status": "ok", "device": device, "actor": actor,
+            "epoch": rev["epoch"], "revoked_at": rev["revoked_at"],
             "enforcement_times": enforcement,
             "last_node": last_node,
             "time_until_last_node_enforces":
@@ -261,16 +276,21 @@ def op_revoke_report(request):
 
 
 def op_re_enroll(request):
-    """Re-enrol a device after loss: fresh key material, other users and the
-    service unaffected."""
+    """Re-enrol a device after loss: fresh key material, actor re-enabled,
+    other users and the service unaffected."""
     state = st.load_state()
     device = request.get("device", "")
     actor = request.get("actor", device)
+    if not device:
+        ident = state["identities"].get(actor)
+        device = ident.get("device", "") if ident else actor
     if device in state["revoked"]:
         del state["revoked"][device]
         state["revocation_epoch"] += 1
         st.journal_append({"kind": "re_enroll", "device": device,
                            "epoch": state["revocation_epoch"], "ts": st.now()})
+    if actor in state["disabled"]:
+        state["disabled"].remove(actor)
     pk, sk = crypto.kem_keypair()
     dpk, dsk = crypto.dsa_keypair()
     ident = state["identities"].get(actor, {})
