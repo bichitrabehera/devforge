@@ -186,6 +186,10 @@ def default_state():
         "revocation_epoch": 0,
         "disabled": [],               # actors denied everywhere
         "admins": ["user-admin"],
+        # Public recovery policy: owner -> separate recovery identity, and
+        # recovery identity -> ML-DSA PUBLIC key (no private material).
+        "recovery_bindings": {},
+        "recovery_public_keys": {},
         "roles": {},                  # actor -> role
         "owners": {},                 # asset -> owner actor
         "protected_data": {},         # asset -> {owner, body}

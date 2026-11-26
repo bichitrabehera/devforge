@@ -76,8 +76,13 @@ def load_events(events_path=None, events=None):
 
 
 def load_labels(labels_path=None, labels=None):
+    """Ground truth for SCORING only - never for detection logic.
+    labels=None with no path means "no ground truth loaded": the rules
+    still run (practice procedure: events are loaded without labels)."""
     if labels is not None:
         return {l["event_id"]: l for l in labels}
+    if labels_path is None:
+        return {}
     with open(labels_path, newline="") as f:
         return {r["event_id"]: r for r in csv.DictReader(f)}
 
@@ -85,6 +90,10 @@ def load_labels(labels_path=None, labels=None):
 def load_approvals(approvals_path=None, approvals=None):
     if approvals is not None:
         return approvals
+    if approvals_path is None:
+        # trusted-source-only mode (grant_role/revoke_role): no trusted
+        # file supplied -> no approvals -> deny (fail closed, no error)
+        return {"changes": []}
     with open(approvals_path) as f:
         return json.load(f)
 
@@ -144,15 +153,20 @@ def evaluate_labelled(events_path=None, labels_path=None, approvals_path=None,
         e["_true_time"] = _parse_ts(e["event_time_utc"]) - offset_ms / 1000.0
         e["_recv_time"] = _parse_ts(e["received_time_utc"])
         norm.append(e)
+    # Detection works on EVENT-TIME order (offset-normalized), but the
+    # original RECEIPT order is captured BEFORE any sorting: the evidence
+    # timeline must not rewrite source evidence.
+    receipt_order = list(norm)
     norm.sort(key=lambda e: e["_true_time"])
 
     # Pass 1: classify privilege changes and access edges.
-    # Group by actor + session + correlation id per the practice procedure;
-    # fall back to session id alone when correlation id is absent.
+    # Group by actor + session + correlation id per the practice procedure
+    # (the actor is part of the key: two actors sharing a session id must
+    # never be conflated); fall back to session id when absent.
     def _group(e):
         sid = e.get("session_id", "") or "no-session"
         corr = e.get("correlation_id", "") or sid
-        return "%s|%s" % (sid, corr)
+        return "%s|%s|%s" % (e.get("actor", ""), sid, corr)
     unexpected_change = {}     # group -> event
     session_unknown = {}       # group -> [events]
     annotations = []
@@ -309,6 +323,19 @@ def evaluate_labelled(events_path=None, labels_path=None, approvals_path=None,
     f1 = (2 * precision * recall / (precision + recall)
           if precision + recall else 0.0)
     ttas = [a["time_to_alert_s"] for a in alerts]
+
+    # Evidence timeline in RECEIPT order (never re-sorted): both source
+    # timestamps are kept verbatim - sorting a report must not rewrite
+    # source evidence; event IDs identify records, not arrival order.
+    timeline = [{
+        "event_id": e["event_id"],
+        "event_time_utc": e.get("event_time_utc"),
+        "received_time_utc": e.get("received_time_utc"),
+        "source_clock_offset_ms": e.get("source_clock_offset_ms"),
+        "estimated_event_time_utc": datetime.fromtimestamp(
+            e["_true_time"], tz=timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+    } for e in receipt_order]
     return {
         "alerts": alerts,
         "annotations": annotations,
@@ -324,6 +351,7 @@ def evaluate_labelled(events_path=None, labels_path=None, approvals_path=None,
         "benign_events": benign,
         "supported_offset_range_ms": SUPPORTED_OFFSET_MS,
         "reorder_tolerance_s": REORDER_TOLERANCE_S,
+        "timeline": timeline,
         "rules": ["unexpected_role_change", "review_after_role_change",
                   "lateral_movement"],
         "context_model": {

@@ -1,0 +1,284 @@
+{
+  "processes": 9,
+  "measurements": {
+    "grace_period_s": 6.0,
+    "grace_window_request": {
+      "decision": "allow",
+      "outcome": "grace",
+      "key_version": 1
+    },
+    "after_cutoff_request": {
+      "decision": "deny",
+      "reason": "old_key_after_cutoff",
+      "key_version": 1
+    },
+    "revocation_propagation_node-a_s": 0.384,
+    "node-a_reported_propagation_s": 0.377,
+    "revocation_propagation_node-b_s": 1.394,
+    "node-b_reported_propagation_s": 1.313,
+    "revocation_propagation_node-c_s": 3.428,
+    "node-c_reported_propagation_s": 3.317,
+    "revocation_last_node": "node-c",
+    "revocation_last_node_enforcement_s": 3.428,
+    "revocation_measurement_type": "single measured run (not a guaranteed maximum)",
+    "route_revoked_recipient": [
+      "node-a",
+      "node-b",
+      "node-c",
+      "node-c"
+    ],
+    "revoked_recipient_node_decisions": [
+      {
+        "node": "node-a",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-b",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-c",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-c",
+        "decision": "deny",
+        "reason": "recipient_revoked"
+      }
+    ],
+    "message_route": [
+      "user-alex",
+      "node-a",
+      "node-b",
+      "node-c",
+      "node-c/messaging-endpoint",
+      "user-blair"
+    ],
+    "node_decisions": [
+      {
+        "node": "node-a",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-b",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-c",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-c/messaging-endpoint",
+        "decision": "deliver",
+        "reason": ""
+      }
+    ],
+    "gap_step_decisions": [
+      {
+        "counter": 3,
+        "decision": "buffered",
+        "reason": ""
+      },
+      {
+        "counter": 2,
+        "decision": "deliver",
+        "reason": "",
+        "delivered": [
+          "second",
+          "third"
+        ]
+      }
+    ],
+    "reorder_arrival_sequence": [
+      1,
+      3,
+      2
+    ],
+    "delivery_order": [
+      "second",
+      "third"
+    ],
+    "delivery_failures": [
+      {
+        "msg_id": "ab881f706fc46a32c5c4c7e1",
+        "counter": 4,
+        "failure": "recipient_binding_mismatch"
+      },
+      {
+        "msg_id": "14dc9a93b6dd42f6c6df24b0",
+        "counter": 6,
+        "failure": "authentication_failed"
+      },
+      {
+        "msg_id": "28fe2d5c4547bbca9f6629ce",
+        "counter": 7,
+        "failure": "authentication_failed"
+      },
+      {
+        "msg_id": "72127c9518b3454611889a64",
+        "counter": 8,
+        "failure": "context_mismatch"
+      }
+    ],
+    "gossip_plaintext_node-a": {
+      "type": "policy_ack",
+      "node": "node-a",
+      "epoch": 3,
+      "key_version": 3,
+      "ts": 1795730472.868
+    },
+    "gossip_log_node-a": "deliver",
+    "gossip_log_node-b": "deliver",
+    "gossip_log_node-c": "deliver",
+    "direct_reorder_response": {
+      "status": "ok",
+      "decision": "deliver",
+      "messages": [
+        {
+          "msg_id": "c7e0fd65f5ef2dae3962f84c",
+          "counter": 1,
+          "plaintext": "msg one"
+        },
+        {
+          "msg_id": "44602b75d39446d3bda9f459",
+          "plaintext": "msg two",
+          "counter": 2
+        }
+      ],
+      "next_deliver": 3
+    },
+    "live_alerts_from_node_logs": 4
+  },
+  "checks": {
+    "owner_read_allow": true,
+    "peer_read_deny": true,
+    "old_key_in_real_grace": true,
+    "old_key_after_real_cutoff": true,
+    "new_key_every_node": true,
+    "new_key_node_c": true,
+    "revoked_node-a": true,
+    "revoked_node-b": true,
+    "revoked_node-c": true,
+    "other_users_unaffected": true,
+    "relayed_denied_at_recipient_node": true,
+    "revoked_recipient_never_delivered": true,
+    "revoked_recipient_no_plaintext": true,
+    "registry_recovered_after_kill": true,
+    "committed_key_version_after_restart": true,
+    "revocations_survive_crash": true,
+    "protected_data_after_restart": true,
+    "revoked_after_restart_node-a": true,
+    "revoked_after_restart_node-b": true,
+    "revoked_after_restart_node-c": true,
+    "revoked_recipient_after_restart": true,
+    "recovery_identity_token_issued": true,
+    "foreign_token_cannot_provision": true,
+    "unauthenticated_provision_rejected": true,
+    "replacement_provisioned": true,
+    "replacement_device_is_distinct": true,
+    "no_private_key_in_recovery_response": true,
+    "runtime_credential_generated": true,
+    "wrong_token_cannot_re_enroll": true,
+    "recovery_re_enroll_accepted": true,
+    "old_device_still_revoked_after_recovery": true,
+    "old_device_revoked_in_policy": true,
+    "replacement_not_revoked": true,
+    "lost_key_cannot_mint_token": true,
+    "replacement_token_issued": true,
+    "replacement_device_access": true,
+    "old_device_denied_after_recovery_node-a": true,
+    "old_device_denied_after_recovery_node-b": true,
+    "old_device_denied_after_recovery_node-c": true,
+    "other_users_still_ok_after_recovery": true,
+    "recovery_audited_at_idp": true,
+    "recovery_audited_at_registry": true,
+    "registry_log_valid_after_recovery": true,
+    "relay_session_established": true,
+    "relayed_delivered_through_ABC": true,
+    "endpoint_received_plaintext": true,
+    "gap_buffered_at_endpoint": true,
+    "relayed_replay_rejected": true,
+    "wrong_recipient_rejected_at_endpoint": true,
+    "unknown_recipient_denied_at_origin": true,
+    "tampered_message_rejected": true,
+    "incomplete_message_rejected": true,
+    "context_binding_enforced": true,
+    "delivery_failure_reported": true,
+    "carol_revoked_for_origin_test": true,
+    "revoked_sender_denied_at_origin": true,
+    "revoked_sender_never_delivered": true,
+    "damaged_backup_rejected": true,
+    "good_backup_restored": true,
+    "node_log_tamper_detected": true,
+    "registry_log_valid": true,
+    "gossip_node-a_to_node-b": true,
+    "gossip_node-b_to_node-c": true,
+    "gossip_node-c_to_node-a": true,
+    "direct_session_ephemeral_zeroized": true,
+    "direct_reorder_delivered_in_order": true,
+    "direct_duplicate_rejected": true,
+    "no_session_keys_on_disk": true,
+    "endpoint_reports_keys_in_ram": true
+  },
+  "all_checks_pass": true
+}

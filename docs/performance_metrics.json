@@ -1,0 +1,86 @@
+{
+  "generated_at_utc": "2026-11-26T22:01:28.986271Z",
+  "context": {
+    "python": "3.10.12",
+    "platform": "Linux-6.8.0-149-generic-x86_64-with-glibc2.35",
+    "processor": "x86_64",
+    "logical_cpus": 12,
+    "container_hint": false,
+    "method": "time.perf_counter around in-process adapter calls; revocation latency from real localhost processes",
+    "statistics": "arithmetic mean, median and 95th percentile of the listed repetitions; no synthetic values"
+  },
+  "grace_period": {
+    "configured_s": 6.0,
+    "accepted_during_grace": {
+      "decision": "allow",
+      "outcome": "grace",
+      "key_version": 1
+    },
+    "rejected_after_cutoff": {
+      "decision": "deny",
+      "reason": "old_key_after_cutoff",
+      "key_version": 1
+    }
+  },
+  "operations": {
+    "read": {
+      "repetitions": 30,
+      "mean_s": 0.013584,
+      "median_s": 0.01355,
+      "p95_s": 0.015604,
+      "min_s": 0.011171,
+      "max_s": 0.015947
+    },
+    "authentication": {
+      "repetitions": 30,
+      "mean_s": 0.019568,
+      "median_s": 0.019411,
+      "p95_s": 0.022568,
+      "min_s": 0.016821,
+      "max_s": 0.02284
+    },
+    "rotation": {
+      "repetitions": 10,
+      "mean_s": 0.040269,
+      "median_s": 0.039779,
+      "p95_s": 0.043844,
+      "min_s": 0.037563,
+      "max_s": 0.043844
+    },
+    "log_verification": {
+      "repetitions": 30,
+      "mean_s": 0.020999,
+      "median_s": 0.020915,
+      "p95_s": 0.02137,
+      "min_s": 0.020623,
+      "max_s": 0.021548
+    },
+    "message_send": {
+      "repetitions": 30,
+      "mean_s": 0.028612,
+      "median_s": 0.0273,
+      "p95_s": 0.031424,
+      "min_s": 0.025606,
+      "max_s": 0.056609
+    },
+    "detector_evaluation": {
+      "repetitions": 20,
+      "mean_s": 0.000271,
+      "median_s": 0.000261,
+      "p95_s": 0.000304,
+      "min_s": 0.000254,
+      "max_s": 0.000409
+    },
+    "revocation_to_last_node_latency": {
+      "value_s": 3.428,
+      "last_node": "node-c",
+      "measurement_type": "single measured run (not a guaranteed maximum)",
+      "per_node_s": {
+        "node-a": 0.384,
+        "node-b": 1.394,
+        "node-c": 3.428
+      },
+      "note": "wall-clock measurement from demo_networked.py; NOT a guaranteed maximum"
+    }
+  }
+}

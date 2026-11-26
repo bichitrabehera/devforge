@@ -1,0 +1,138 @@
+{
+  "generated_at_utc": "2026-11-26T22:01:26.038726Z",
+  "dataset": {
+    "name": "organizer synthetic practice set (practice/)",
+    "events_file": "practice/events.csv",
+    "labels_file": "practice/labels.csv",
+    "approvals_file": "practice/approvals.json",
+    "event_count": 22,
+    "label_count": 22,
+    "synthetic": true,
+    "scope": "These metrics apply ONLY to this practice set."
+  },
+  "detector": "deterministic rule/graph detector; no AI/ML component",
+  "f1": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "median_time_to_alert_s": 1.2,
+  "false_alerts_per_1000_benign": 0.0,
+  "counts": {
+    "true_positives": 5,
+    "false_positives": 0,
+    "missed": 0,
+    "benign_events": 17,
+    "alerts": 5
+  },
+  "alerts": [
+    {
+      "event_id": "evt-008",
+      "identity": "user-blair",
+      "affected_services": [
+        "admin-console",
+        "identity"
+      ],
+      "triggering_event_ids": [
+        "evt-008"
+      ],
+      "rule": "unexpected_role_change",
+      "explanation": "identity=user-blair changed role viewer->operator in session user-blair|sess-blair|flow-004 with no matching approval (checked subject, operation, role, validity window)"
+    },
+    {
+      "event_id": "evt-009",
+      "identity": "user-blair",
+      "affected_services": [
+        "portal",
+        "reports"
+      ],
+      "triggering_event_ids": [
+        "evt-008",
+        "evt-009"
+      ],
+      "rule": "review_after_role_change",
+      "explanation": "allowed data read in the same session follows the unexpected role change of user-blair (rule: review-after-unexpected-change)"
+    },
+    {
+      "event_id": "evt-010",
+      "identity": "svc-report-worker",
+      "affected_services": [
+        "reports",
+        "billing"
+      ],
+      "triggering_event_ids": [
+        "evt-010",
+        "evt-011",
+        "evt-012"
+      ],
+      "rule": "lateral_movement",
+      "explanation": "CANDIDATE lateral movement: identity=svc-report-worker traversed an unusual service path [reports->billing -> billing->archive -> archive->identity] in session svc-report-worker|sess-worker|flow-005 / flow flow-005 (outcomes: deny); edges are outside the documented service graph and role scopes. This sequence does not establish successful access or compromise (first edge evt-010)"
+    },
+    {
+      "event_id": "evt-011",
+      "identity": "svc-report-worker",
+      "affected_services": [
+        "billing",
+        "archive"
+      ],
+      "triggering_event_ids": [
+        "evt-010",
+        "evt-011",
+        "evt-012"
+      ],
+      "rule": "lateral_movement",
+      "explanation": "CANDIDATE lateral movement: identity=svc-report-worker traversed an unusual service path [reports->billing -> billing->archive -> archive->identity] in session svc-report-worker|sess-worker|flow-005 / flow flow-005 (outcomes: deny); edges are outside the documented service graph and role scopes. This sequence does not establish successful access or compromise (first edge evt-010)"
+    },
+    {
+      "event_id": "evt-012",
+      "identity": "svc-report-worker",
+      "affected_services": [
+        "archive",
+        "identity"
+      ],
+      "triggering_event_ids": [
+        "evt-010",
+        "evt-011",
+        "evt-012"
+      ],
+      "rule": "lateral_movement",
+      "explanation": "CANDIDATE lateral movement: identity=svc-report-worker traversed an unusual service path [reports->billing -> billing->archive -> archive->identity] in session svc-report-worker|sess-worker|flow-005 / flow flow-005 (outcomes: deny); edges are outside the documented service graph and role scopes. This sequence does not establish successful access or compromise (first edge evt-010)"
+    }
+  ],
+  "timing_range": {
+    "supported_clock_skew_tolerance_s": 60.0,
+    "supported_out_of_order_reorder_window_s": 10.0,
+    "accepted_in_range_clock_case": {
+      "event_id": "evt-002",
+      "source_clock_offset_ms": 1000,
+      "order_uncertain_count": 0
+    },
+    "flagged_beyond_range_clock_case": {
+      "event_id": "evt-002",
+      "source_clock_offset_ms": 61000,
+      "order_uncertain": [
+        {
+          "event_id": "evt-002",
+          "reason": "clock_offset_61000ms_beyond_supported_60000ms"
+        },
+        {
+          "event_id": "evt-002",
+          "note": "order_uncertain",
+          "detail": "older event (evt-001) arrived later by 59.0s; BEYOND tolerance"
+        }
+      ]
+    },
+    "accepted_in_range_reorder_case": [
+      {
+        "event_id": "evt-013",
+        "note": "delayed_delivery",
+        "detail": "older event (evt-014) arrived later by 1.0s; within reorder tolerance"
+      }
+    ],
+    "flagged_beyond_range_reorder_case": [
+      {
+        "event_id": "evt-002",
+        "note": "order_uncertain",
+        "detail": "older event (evt-003) arrived later by 58.0s; BEYOND tolerance"
+      }
+    ]
+  }
+}

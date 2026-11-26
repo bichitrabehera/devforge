@@ -14,7 +14,8 @@ Message protection
 ------------------
 AES-256-GCM with:
   * nonce  = HKDF(session_key, "track4-nonce:<counter>")  - unique per message
-  * AAD    = canonical({sid, sender, recipient, counter}) - recipient binding
+  * AAD    = canonical({sid, sender, recipient, counter,
+                        msg_id, context, key_version}) - full binding
   * msg_id = SHA-256(sid | counter)[:24]                  - replay detection
 
 Delivery semantics
@@ -44,6 +45,7 @@ from . import audit, crypto
 from . import state as st
 
 REORDER_WINDOW = 8      # documented loss/reordering tolerance
+CONTEXT = "track4-msg-v2"  # authenticated context tag for every envelope
 
 
 MAX_SESSIONS = 256       # DoS bound: capped concurrent session records
@@ -70,15 +72,48 @@ def _nonce_for(session_key, counter):
     return crypto.hkdf(session_key, b"track4-nonce:" + str(counter).encode(), 12)
 
 
-def _msg_aad(sid, sender, recipient, counter):
-    return crypto.canonical({"sid": sid, "sender": sender,
-                             "recipient": recipient,
-                             "counter": counter}).encode()
+def _msg_aad(sid, sender, recipient, counter, msg_id=None,
+             context=CONTEXT, key_version="session", key_commitment=None):
+    """AEAD associated data binding every security-relevant envelope field.
+
+    `msg_id` is derived from (sid, counter) when not supplied explicitly;
+    callers MUST supply the same value they put on the wire.  `context`
+    separates this protocol from any other use of the same key, and
+    `key_version` binds the message to the key lifecycle state.
+    `key_commitment` (see _key_commitment) binds the envelope to the exact
+    session key; the service's send/receive paths ALWAYS set it.
+    """
+    d = {
+        "sid": sid, "sender": sender, "recipient": recipient,
+        "counter": counter,
+        "msg_id": msg_id if msg_id is not None else _msg_id(sid, counter),
+        "context": context, "key_version": key_version,
+    }
+    if key_commitment is not None:
+        d["key_commitment"] = key_commitment
+    return crypto.canonical(d).encode()
 
 
 def _msg_id(sid, counter):
     return hashlib.sha256(crypto.canonical(
         {"sid": sid, "counter": counter}).encode()).hexdigest()[:24]
+
+
+def _key_commitment(session_key_hex):
+    """Key-commitment tag for the session key.
+
+    AES-256-GCM is NOT key-committing (NIST SP 800-38D provides no proof
+    that a ciphertext was produced under one specific key).  This HMAC tag
+    is carried inside the AEAD associated data of every message, so the
+    receiver learns - authenticated by the tag itself - that the envelope
+    was encrypted under exactly the session key currently bound to the
+    session id.  A message produced under any other key fails
+    authentication before delivery (key-substitution / key-confusion
+    resistance, cf. Bellare-Hoang-Keelveedhi on key commitment).
+    """
+    ck = crypto.hkdf(bytes.fromhex(session_key_hex),
+                     b"track4-key-commitment")
+    return hmac.new(ck, b"track4-commitment-v1", hashlib.sha256).hexdigest()[:32]
 
 
 def _resumption_token(secret_hex, peer):
@@ -125,13 +160,23 @@ def op_session_open(request):
 
 
 def op_session_accept(request):
-    """Sender encapsulates; session key derived; ephemeral secret zeroized."""
+    """Sender encapsulates; session key derived; ephemeral secret zeroized.
+
+    Only the ORIGINAL opener may complete the handshake: the pending
+    session is bound to the sender recorded at session_open, so a
+    different identity cannot hijack the half-open KEM exchange."""
     state = st.load_state()
     sid = request.get("sid", "")
     session = state["sessions"].get(sid)
     if not session or session["state"] != "pending":
         return {"status": "error", "message": "no_pending_session"}
     sender = request.get("sender", session["sender"])
+    if sender != session["sender"]:
+        audit.append(state, sender, "session_accept", sid, "deny",
+                     detail="session_sender_mismatch")
+        st.save_state(state)
+        return {"status": "error", "message": "endpoint_mismatch",
+                "reason": "not_the_original_sender", "sid": sid}
     recipient = session["recipient"]
     if not _device_ok(state, sender) or not _device_ok(state, recipient):
         return {"status": "error", "message": "participant_not_active",
@@ -185,7 +230,8 @@ def op_message_send(request):
     plaintext = request.get("plaintext", "").encode("utf-8")
     key = bytes.fromhex(session["key"])
     nonce = _nonce_for(key, counter)
-    aad = _msg_aad(sid, sender, recipient, counter)
+    aad = _msg_aad(sid, sender, recipient, counter,
+                   key_commitment=_key_commitment(session["key"]))
     ct = crypto.aead_encrypt(key, nonce, plaintext, aad)
     session["counter"] = counter
     msg_id = _msg_id(sid, counter)
@@ -272,7 +318,8 @@ def op_message_receive(request):
                 "note": "delivery failure reported; window=%d" % REORDER_WINDOW}
 
     try:
-        aad = _msg_aad(sid, sender, session["recipient"], counter)
+        aad = _msg_aad(sid, sender, session["recipient"], counter,
+                       key_commitment=_key_commitment(session["key"]))
         plaintext = crypto.aead_decrypt(key, nonce, ct, aad)
     except Exception:
         audit.append(state, sender or "unknown", "message_receive", sid,
@@ -366,12 +413,23 @@ def op_session_resume(request):
 
 
 def op_session_close(request):
+    """Close a session and zeroize its key.
+
+    The resumption token is ALWAYS bound to the session's original
+    recipient: a caller naming a different peer is refused, so nobody can
+    mint a resumption token for an identity that never owned the session."""
     state = st.load_state()
     sid = request.get("sid", "")
     session = state["sessions"].get(sid)
     if not session:
         return {"status": "error", "message": "no_such_session"}
     peer = request.get("peer", session["recipient"])
+    if peer != session["recipient"]:
+        audit.append(state, peer, "session_close", sid, "deny",
+                     detail="session_close_peer_mismatch")
+        st.save_state(state)
+        return {"status": "error", "message": "endpoint_mismatch",
+                "reason": "not_the_session_recipient", "sid": sid}
     token = ""
     if session.get("resumption_secret"):
         token = _resumption_token(session["resumption_secret"], peer)

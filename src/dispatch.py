@@ -16,10 +16,16 @@ def _op_advance_time(request):
     except (TypeError, ValueError):
         return {"status": "error", "message": "invalid_time_delta"}
     # NaN/Infinity would poison every cutoff and revocation-enforcement
-    # comparison (NaN >= x is False forever). Reject non-finite deltas.
+    # comparison (NaN >= x is False forever); NEGATIVE deltas rewind the
+    # clock, resurrecting expired old keys (cutoff un-done) and un-enforcing
+    # device revocations (now < enforce_at again). The simulated clock is
+    # monotonic: reject non-finite AND negative deltas.
     if not math.isfinite(seconds):
         return {"status": "error", "message": "invalid_time_delta",
                 "reason": "non_finite"}
+    if seconds < 0:
+        return {"status": "error", "message": "invalid_time_delta",
+                "reason": "clock_is_monotonic"}
     now = st.advance_clock(seconds)
     return {"status": "ok", "now": now,
             "clock_offset": st.load_state().get("clock_offset", 0.0)}
@@ -95,6 +101,7 @@ _OPS = {
     "node_status": keys.op_node_status, "node_sync": keys.op_node_sync,
     "revoke": keys.op_revoke, "revoke_report": keys.op_revoke_report,
     "re_enroll": keys.op_re_enroll, "re_enroll_device": keys.op_re_enroll,
+    "recover_device": keys.op_recover_device,
     # crash recovery / backups
     "begin_rotation": recovery.op_begin_rotation,
     "crash_rotation": recovery.op_crash_rotation,

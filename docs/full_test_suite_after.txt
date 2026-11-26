@@ -1,0 +1,182 @@
+test_outside_root_approvals_ignored (test_adversarial.TestApprovalsInjection) ... ok
+test_fully_forged_backup_rejected (test_adversarial.TestBackupSwap) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:146: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red__tzrnx9t/backups/b1.json' mode='w' encoding='UTF-8'>
+  json.dump({"manifest": manifest,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_first_write_wins (test_adversarial.TestDecisionOverwrite) ... ok
+test_poisoned_events_flagged_not_crash (test_adversarial.TestDetectorPoisoning) ... ok
+test_fuzz_inputs_fail_closed (test_adversarial.TestInjectionAndFuzz) ... ok
+test_log_injection_newline_and_unicode (test_adversarial.TestInjectionAndFuzz) ... ok
+test_protected_read_huge_challenge_bounded_output (test_adversarial.TestInjectionAndFuzz) ... ok
+test_protected_read_type_confusion (test_adversarial.TestInjectionAndFuzz) ... ok
+test_forged_journal_record_rejected_on_replay (test_adversarial.TestJournalForgery) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:101: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_aiwqvl4u/journal.jsonl' mode='r' encoding='UTF-8'>
+  lines = open(st.journal_path()).read().splitlines()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_adversarial.py:105: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_aiwqvl4u/journal.jsonl' mode='w' encoding='UTF-8'>
+  open(st.journal_path(), "w").write("\n".join(lines) + "\n")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_unsigned_journal_record_rejected (test_adversarial.TestJournalForgery) ... ok
+test_cross_session_ciphertext_replay (test_adversarial.TestMessagingAttacks) ... ok
+test_forged_resumption_token (test_adversarial.TestMessagingAttacks) ... ok
+test_session_flood_capped (test_adversarial.TestMessagingAttacks) ... ok
+test_nan_and_inf_deltas_rejected (test_adversarial.TestNonFiniteClock) ... ok
+test_nan_clock_cannot_bypass_revocation (test_adversarial.TestNonFiniteClock) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:349: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_682umo3e/state.json' mode='r' encoding='UTF-8'>
+  raw = json.load(open(sp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_adversarial.py:353: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_682umo3e/state.json' mode='w' encoding='UTF-8'>
+  json.dump(raw, open(sp, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_huge_detail_clipped (test_adversarial.TestResourceBounds) ... ok
+test_huge_request_id_clipped (test_adversarial.TestResourceBounds) ... ok
+test_manifest_plus_rollforward_survives_repeat (test_adversarial.TestRollbackSubstitution) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:321: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_7bb4hi0k/state.json' mode='r' encoding='UTF-8'>
+  snapshot = open(sp).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_adversarial.py:323: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_7bb4hi0k/state.json' mode='w' encoding='UTF-8'>
+  open(sp, "w").write(snapshot)     # roll back to the v1 state
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_stale_snapshot_rolled_forward_by_signed_journal (test_adversarial.TestRollbackSubstitution) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:305: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_sm4_nw2u/state.json' mode='r' encoding='UTF-8'>
+  snapshot = open(sp).read()        # attacker's stale-but-valid copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_adversarial.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_sm4_nw2u/state.json' mode='w' encoding='UTF-8'>
+  open(sp, "w").write(snapshot)     # substitute the stale state
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_silent_tamper_of_log_region_detected (test_adversarial.TestStateTampering) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:74: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_wjlg7il9/state.json' mode='r' encoding='UTF-8'>
+  raw = json.load(open(sp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_adversarial.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_wjlg7il9/state.json' mode='w' encoding='UTF-8'>
+  json.dump(raw, open(sp, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_tampered_state_is_quarantined_and_restorable (test_adversarial.TestStateTampering) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:51: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_zz97yl28/state.json' mode='r' encoding='UTF-8'>
+  raw = json.load(open(sp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_adversarial.py:54: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_zz97yl28/state.json' mode='w' encoding='UTF-8'>
+  json.dump(raw, open(sp, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_read_on_unconfigured_state_is_graceful (test_adversarial.TestUnconfiguredState) ... ok
+test_adapter_protected_read_roundtrip (test_contract.TestAdapterEndToEnd) ... ok
+test_matches_cryptography_package (test_contract.TestHKDFStandard) ... ok
+test_bad_public_key_rejected (test_contract.TestProtectedRead) ... ok
+test_deny_discloses_nothing (test_contract.TestProtectedRead) ... ok
+test_revoked_owner_cannot_protected_read (test_contract.TestProtectedRead) ... ok
+test_roundtrip_verify_proof_and_content (test_contract.TestProtectedRead) ... ok
+test_recorded_decision_survives_policy_change (test_contract.TestRecordedAudit) ... ok
+test_unknown_request_id_falls_back (test_contract.TestRecordedAudit) ... ok
+test_disabled_actors_denied_and_key_material_secret (test_contract.TestSetupReset) ... /home/daaku/Desktop/yug/tests/test_contract.py:74: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_contract_zn7vaqkv/state.json' mode='r' encoding='UTF-8'>
+  raw = open(os.path.join(self._dir, "state.json")).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_setup_resets_previous_state (test_contract.TestSetupReset) ... ok
+test_duplicate_and_truncated_messages_are_rejected (test_gap_closure.AADBindingTest) ... ok
+test_modified_sender_recipient_msg_id_and_context_are_rejected (test_gap_closure.AADBindingTest) ... ok
+test_recovery_without_lost_key_and_old_session_stays_dead (test_gap_closure.EmbeddedRecoveryTest) ... ok
+test_revocation_keys_data_and_recovery_survive_real_restart (test_gap_closure.RealProcessRestartTest) ... ok
+test_01_identity_tokens_and_reads (test_networked.NetworkedTest) ... ok
+test_02_rotation_real_cutoff (test_networked.NetworkedTest) ... ok
+test_03_revocation_real_propagation (test_networked.NetworkedTest) ... ok
+test_04_backup_and_log_integrity (test_networked.NetworkedTest) ... ok
+test_05_messaging_endpoint_real_sockets (test_networked.NetworkedTest) ... ok
+test_06_registry_log_integrity (test_networked.NetworkedTest) ... ok
+test_07_control_plane_and_session_auth (test_networked.NetworkedTest)
+Second-pass audit findings: unauthenticated control plane, ... ok
+test_08_real_lost_device_recovery (test_networked.NetworkedTest)
+The owner uses a SEPARATE recovery identity; the lost device key ... ok
+test_09_node_to_node_gossip (test_networked.NetworkedTest)
+A node PROCESS sends an encrypted, authenticated policy-ack ... ok
+test_disabled_actor_denied_everywhere (test_objectives.TestAccessControl) ... ok
+test_owner_reads_and_other_denied (test_objectives.TestAccessControl) ... ok
+test_damaged_backup_rejected_valid_restored (test_objectives.TestBackupIntegrity) ... ok
+test_recover_after_interrupted_rotation (test_objectives.TestCrashRecovery) ... ok
+test_recovery_setup_requires_backup_when_identity_lost (test_objectives.TestCrashRecovery) ... ok
+test_alerts_are_explainable (test_objectives.TestDetectorLabelled) ... ok
+test_clock_differences_and_out_of_order (test_objectives.TestDetectorLabelled) ... ok
+test_isolated_unknown_edge_not_alerted (test_objectives.TestDetectorLabelled) ... ok
+test_metrics_on_labelled_log (test_objectives.TestDetectorLabelled) ... ok
+test_offset_beyond_range_flagged_uncertain (test_objectives.TestDetectorLabelled) ... ok
+test_injection_text_stays_one_record (test_objectives.TestLogIntegrity) ... ok
+test_log_entries_are_signed (test_objectives.TestLogIntegrity) ... ok
+test_tamper_detected_by_verify (test_objectives.TestLogIntegrity) ... ok
+test_delivery_under_loss_and_reordering (test_objectives.TestMessaging) ... ok
+test_forward_secrecy (test_objectives.TestMessaging) ... ok
+test_replay_and_recipient_binding (test_objectives.TestMessaging) ... ok
+test_session_resumption_peer_binding (test_objectives.TestMessaging) ... ok
+test_re_enroll_restores_owner_only (test_objectives.TestRevocationAcrossNodes) ... ok
+test_revoke_does_not_break_other_users (test_objectives.TestRevocationAcrossNodes) ... ok
+test_revoke_propagates_and_reports_timing (test_objectives.TestRevocationAcrossNodes) ... ok
+test_grace_period_documented (test_objectives.TestRotationCutoff) ... ok
+test_transfer_during_rotation_and_cutoff_after (test_objectives.TestRotationCutoff) ... ok
+test_adapter_roundtrip (test_objectives.TestServiceAdapter) ... ok
+test_concurrent_processes_serialize (test_qa_gapfill.TestAdapterEndpoint) ... ok
+test_detector_op_returns_valid_json (test_qa_gapfill.TestAdapterEndpoint) ... ok
+test_no_traceback_on_any_failure (test_qa_gapfill.TestAdapterEndpoint) ... ok
+test_clock_cannot_rewind (test_qa_gapfill.TestAdapterTrustModel) ... ok
+test_close_cannot_mint_foreign_resumption_token (test_qa_gapfill.TestAdapterTrustModel) ... ok
+test_inline_forged_approvals_ignored (test_qa_gapfill.TestAdapterTrustModel) ... ok
+test_pending_session_cannot_be_hijacked (test_qa_gapfill.TestAdapterTrustModel) ... ok
+test_regular_close_and_accept_unchanged (test_qa_gapfill.TestAdapterTrustModel) ... ok
+test_rewinding_cannot_unenforce_revocation (test_qa_gapfill.TestAdapterTrustModel) ... ok
+test_concurrent_ops_keep_invariants (test_qa_gapfill.TestConcurrency) ... ok
+test_op_failed_has_no_internal_details (test_qa_gapfill.TestErrorLeaks) ... ok
+test_responses_never_contain_private_key_material (test_qa_gapfill.TestErrorLeaks) ... ok
+test_captured_traffic_survives_long_term_compromise (test_qa_gapfill.TestForwardSecrecyCompromise) ... ok
+test_malformed_structures_fail_closed (test_qa_gapfill.TestInputValidation) ... ok
+test_path_traversal_asset_is_just_a_key (test_qa_gapfill.TestInputValidation) ... ok
+test_unicode_and_control_chars_in_fields (test_qa_gapfill.TestInputValidation) ... ok
+test_entry_deletion_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:64: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_5lvasuqw/state.json' mode='r' encoding='UTF-8'>
+  raw = json.load(open(sp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_5lvasuqw/state.json' mode='w' encoding='UTF-8'>
+  json.dump(raw, open(sp, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_entry_duplication_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:90: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_bkgnc7c6/state.json' mode='r' encoding='UTF-8'>
+  raw = json.load(open(sp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:94: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_bkgnc7c6/state.json' mode='w' encoding='UTF-8'>
+  json.dump(raw, open(sp, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_entry_insertion_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:76: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_mysc3x5q/state.json' mode='r' encoding='UTF-8'>
+  raw = json.load(open(sp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:84: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_mysc3x5q/state.json' mode='w' encoding='UTF-8'>
+  json.dump(raw, open(sp, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_entry_reordering_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:100: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_fp59j52v/state.json' mode='r' encoding='UTF-8'>
+  raw = json.load(open(sp))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:106: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_fp59j52v/state.json' mode='w' encoding='UTF-8'>
+  json.dump(raw, open(sp, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_untampered_log_valid (test_qa_gapfill.TestLogChainMutations) ... ok
+test_cannot_bypass_duplicate_by_renaming (test_qa_gapfill.TestMsgIdBinding) ... ok
+test_genuine_msg_id_still_delivers_then_duplicates (test_qa_gapfill.TestMsgIdBinding) ... ok
+test_renamed_msg_id_rejected (test_qa_gapfill.TestMsgIdBinding) ... ok
+test_detection_logic_runs_without_labels (test_qa_gapfill.TestPracticeProcedureConformance) ... ok
+test_grouping_includes_actor (test_qa_gapfill.TestPracticeProcedureConformance) ... ok
+test_same_actor_burst_still_alerts (test_qa_gapfill.TestPracticeProcedureConformance) ... ok
+test_timeline_keeps_receipt_order_and_both_timestamps (test_qa_gapfill.TestPracticeProcedureConformance) ... ok
+test_valid_until_is_exclusive (test_qa_gapfill.TestPracticeProcedureConformance) ... ok
+test_normal_path_not_alerted (test_qa_gapfill.TestRepeatedLateralAttempts) ... ok
+test_repeated_unknown_edge_access_flagged_with_context (test_qa_gapfill.TestRepeatedLateralAttempts) ... ok
+test_disabled_actor_cannot_open_session (test_qa_gapfill.TestRevokedSenderMessaging) ... ok
+test_re_enroll_restores_messaging (test_qa_gapfill.TestRevokedSenderMessaging) ... ok
+test_revoked_peer_cannot_resume (test_qa_gapfill.TestRevokedSenderMessaging) ... ok
+test_revoked_recipient_cannot_read (test_qa_gapfill.TestRevokedSenderMessaging) ... ok
+test_revoked_sender_cannot_keep_sending (test_qa_gapfill.TestRevokedSenderMessaging) ... ok
+test_bitflipped_ciphertext_rejected (test_qa_gapfill.TestTruncatedAndTamperedCiphertext) ... ok
+test_counter_shift_is_replay_or_auth_failure (test_qa_gapfill.TestTruncatedAndTamperedCiphertext) ... ok
+test_truncated_ciphertext_rejected (test_qa_gapfill.TestTruncatedAndTamperedCiphertext) ... ok
+test_truncated_nonce_rejected (test_qa_gapfill.TestTruncatedAndTamperedCiphertext) ... ok
+
+----------------------------------------------------------------------
+Ran 108 tests in 35.177s
+
+OK

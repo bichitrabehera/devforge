@@ -26,15 +26,37 @@ class AEADUnavailable(RuntimeError):
     """AES-GCM requested but the `cryptography` package is not installed."""
 
 
-# Defensive check: the judging container pins pqcrypto==0.4.0 while
-# development used 1.0.0; fail loudly with a clear message if the API moved.
-for _mod, _fns in ((ml_kem_768, ("keygen", "encaps", "decaps")),
-                   (ml_dsa_65, ("keygen", "sign", "verify"))):
-    for _fn in _fns:
-        if not hasattr(_mod, _fn):
-            raise ImportError(
-                "pqcrypto API mismatch: %s.%s missing - verify the pinned "
-                "pqcrypto version" % (_mod.__name__, _fn))
+# pqcrypto ships two APIs over the years: 1.x exposes keygen/encaps/decaps,
+# 0.4.x (the version the judging container pins) exposes
+# generate_keypair/encrypt/decrypt.  Normalize to one interface here so the
+# project runs unchanged on both (FIPS 203/204 algorithms are identical;
+# only the Python wrapper names differ).
+if hasattr(ml_kem_768, "keygen") and hasattr(ml_kem_768, "encaps"):
+    _kem_keypair = ml_kem_768.keygen
+    _kem_encaps = ml_kem_768.encaps
+    _kem_decaps = ml_kem_768.decaps
+elif hasattr(ml_kem_768, "generate_keypair") and hasattr(ml_kem_768, "encrypt"):
+    _kem_keypair = ml_kem_768.generate_keypair
+    _kem_encaps = ml_kem_768.encrypt
+    _kem_decaps = ml_kem_768.decrypt
+else:
+    raise ImportError(
+        "pqcrypto API mismatch: pqcrypto.kem.ml_kem_768 exposes neither the "
+        "keygen/encaps/decaps nor the generate_keypair/encrypt/decrypt API - "
+        "verify the pinned pqcrypto version")
+
+if hasattr(ml_dsa_65, "keygen") and hasattr(ml_dsa_65, "sign"):
+    _dsa_keypair = ml_dsa_65.keygen
+    _dsa_sign = ml_dsa_65.sign
+    _dsa_verify_raw = ml_dsa_65.verify
+elif hasattr(ml_dsa_65, "generate_keypair") and hasattr(ml_dsa_65, "sign"):
+    _dsa_keypair = ml_dsa_65.generate_keypair
+    _dsa_sign = ml_dsa_65.sign
+    _dsa_verify_raw = ml_dsa_65.verify
+else:
+    raise ImportError(
+        "pqcrypto API mismatch: pqcrypto.sign.ml_dsa_65 has no usable "
+        "sign/verify API - verify the pinned pqcrypto version")
 
 
 def fp(public_bytes):
@@ -43,32 +65,34 @@ def fp(public_bytes):
 
 
 def kem_keypair():
-    return ml_kem_768.keygen()
+    return _kem_keypair()
 
 
 def kem_encaps(public_key):
-    return ml_kem_768.encaps(public_key)   # -> (ciphertext, shared_secret)
+    return _kem_encaps(public_key)   # -> (ciphertext, shared_secret)
 
 
 def kem_decaps(secret_key, ciphertext):
-    return ml_kem_768.decaps(secret_key, ciphertext)
+    return _kem_decaps(secret_key, ciphertext)
 
 
 def dsa_keypair():
-    return ml_dsa_65.keygen()
+    return _dsa_keypair()
 
 
 def dsa_sign(sk_hex, msg_bytes):
-    return ml_dsa_65.sign(bytes.fromhex(sk_hex), msg_bytes).hex()
+    return _dsa_sign(bytes.fromhex(sk_hex), msg_bytes).hex()
 
 
 def dsa_verify(pk_hex, msg_bytes, sig_hex):
     try:
-        ml_dsa_65.verify(bytes.fromhex(pk_hex), msg_bytes,
-                         bytes.fromhex(sig_hex))
-        return True   # pqcrypto returns None on success, raises on failure
+        result = _dsa_verify_raw(bytes.fromhex(pk_hex), msg_bytes,
+                                 bytes.fromhex(sig_hex))
     except Exception:
         return False
+    # pqcrypto 1.x: verify() returns None on success and RAISES on failure.
+    # pqcrypto 0.4.x: verify() returns True/False.  Accept both.
+    return result is None or result is True
 
 
 def hkdf(secret, info, length=32, salt=None):

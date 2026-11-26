@@ -8,6 +8,16 @@ movement from access logs.
 All cryptography comes from vetted libraries only — **ML-KEM-768 (FIPS 203)**
 and **ML-DSA-65 (FIPS 204)** via `pqcrypto`, plus **HKDF-SHA256** and
 **AES-256-GCM** via `cryptography`. No custom primitives, no AI/ML.
+Correctness is evidenced, not assumed: official RFC 5869 HKDF vectors,
+cross-implementation interop between pqcrypto (PQClean) and `cryptography`
+(OpenSSL), and an optional NIST ACVP loader (`tests/test_kat.py`). The
+adapter also runs on BOTH pqcrypto APIs (0.4.x `generate_keypair` and 1.x
+`keygen`) — the judging container's pin is covered.
+
+**AES-GCM key commitment:** GCM does not prove which key produced a
+ciphertext, so every message envelope carries an HMAC key-commitment tag
+inside its authenticated AAD — a message made under any other key fails
+authentication before delivery (`src/messaging.py`, `TestKeyCommitment`).
 
 ## Quick start (clean machine)
 
@@ -18,7 +28,7 @@ Python with exactly two third-party packages (see `requirements.txt`):
 # system Python is fine (verified: no venv needed)
 pip install -r requirements.txt      # or: pip install --user -r requirements.txt
 
-# run the objective test suite (23 tests)
+# run the full test suite (141 tests incl. KAT, verifier, red team)
 python3 -m unittest discover -s tests -v
 
 # scripted end-to-end demonstration (rotation, revocation, recovery,
@@ -34,6 +44,27 @@ State lives under `$TRACK4_STATE_DIR` (default `/tmp/track4_state`): a live
 `state.json` (atomic replace), an append-only `journal.jsonl`, and signed
 backups under `backups/`. Private state for tests/demo is isolated
 automatically.
+
+## Verify everything yourself (operator view)
+
+The service's own checks are not the evidence — an operator who does not
+code trust the service re-checks the artifacts with the standalone
+verifier, and the red team probes the adapter the way the judges will:
+
+```bash
+python3 tools/selfattack.py                 # 15 items / 76 black-box checks
+python3 scripts/check_all.py                # repo hygiene gate (see header)
+python3 verifier/track4_verify.py audit --state /tmp/track4_state/state.json \
+    --pub <service-dsa-pk-hex> --expect-head <head-you-recorded>
+python3 tools/gen_logs.py --out /tmp/heldout --events 12000 --seed 20261126
+python3 scripts/eval_detector.py --events /tmp/heldout/events.csv \
+    --labels /tmp/heldout/labels.csv --approvals /tmp/heldout/approvals.json
+```
+
+Exit-code discipline of the verifier: `0` = verified AND completeness
+established (head/counter recorded out of band), `2` = verified but
+completeness NOT established, `1` = verification failed. A script that
+tests only the exit code is never told OK about a possibly truncated log.
 
 ## Repository layout
 
@@ -56,12 +87,38 @@ automatically.
 │   ├── detector.py         rule-based detection + F1/TTA/FP-per-1000 metrics
 │   ├── dispatch.py         op registry (single entry point)
 │   └── demo.py             the scripted demonstration
-├── tests/test_objectives.py  23 tests, one class per challenge objective
+├── tools/
+│   ├── selfattack.py       black-box red team against our own adapter
+│   │                       (15 items, 76 checks, severity-classified)
+│   └── gen_logs.py         independent labelled-log generator (held-out
+│                           detector evaluation, fixed seed)
+├── scripts/
+│   ├── check_all.py        ONE command: layout, AST static scan, secrets
+│   │                       (tree + full git history), AI-identity scan,
+│   │                       validator, tests
+│   ├── eval_detector.py    detector scoring incl. per-class P/R/F1
+│   └── make_brief_pdf.py   renders the 2-page brief
+├── verifier/
+│   └── track4_verify.py    STANDALONE verifier: imports nothing from src/;
+│                           audit/journal/state/backup; exit 0 verified +
+│                           complete, 1 failed, 2 verified-but-incomplete
+├── tests/test_objectives.py  23 tests, one class per challenge objective (plus
+│                              118 more across adversarial/contract/networked/
+│                              KAT/verifier/selfattack suites)
 ├── tests/test_networked.py   6 integration tests over real localhost sockets
+├── tests/test_kat.py         official RFC 5869 vectors + pqcrypto↔OpenSSL
+│                              cross-implementation checks (+ optional NIST
+│                              ACVP loader, see file docstring)
+├── tests/test_verifier.py    verifier agrees with the service, rejects tamper
+├── tests/test_selfattack.py  the whole red-team run stays clean
 ├── practice/               organizer sandbox data (events.csv, labels.csv, approvals.json)
 └── docs/
     ├── THREAT_MODEL.md     one-page threat model
     ├── PROJECT_BRIEF.md    USP, architecture, demo video link
+    ├── EVIDENCE_MATRIX.md  12 objectives: demo, expected-before-run,
+    │                       measured result, limit — one row each
+    ├── DETECTOR_METRICS.md practice AND held-out (12k events) metrics
+    ├── SELFATTACK_REPORT.md generated by tools/selfattack.py
     └── archive/            pre-rewrite audit notes
 ```
 

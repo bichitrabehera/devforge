@@ -24,18 +24,26 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src import crypto, netutil  # noqa: E402
-from src.messaging import REORDER_WINDOW, _msg_aad, _msg_id, _nonce_for  # noqa: E402
+from src import crypto, netutil, tokens  # noqa: E402
+from src.messaging import CONTEXT, REORDER_WINDOW  # noqa: E402
+from src.messaging import (_msg_aad, _msg_id, _nonce_for,  # noqa: E402
+    _key_commitment)
 
 
 class Endpoint:
     """One messaging endpoint. Every field here lives in RAM only."""
 
-    def __init__(self, name, port, identity, peer_identity):
+    def __init__(self, name, port, identity, peer_identity, idp=None,
+                 registry=None):
         self.name = name
         self.port = port
         self.identity = identity
         self.peer = peer_identity
+        self.idp = idp          # required for token-authenticated sessions
+        self.registry = registry  # optional: enforce registry revocation
+        self._jwks_pk = None
+        self._pol_cache = (0.0, {"revoked": {}, "disabled": [],
+                                 "identities": {}})
         self.session = {
             "sid": None, "eph_pk": None, "eph_sk": None, "key": None,
             "state": "empty", "counter": 0, "next_deliver": 1,
@@ -49,9 +57,90 @@ class Endpoint:
         self.audit.append({"ts": time.time(), "action": action,
                            "decision": decision, "detail": detail})
 
+    def _authenticated_payload(self, body):
+        """Return (payload, err). Every security decision uses the IdP
+        token's subject AND device, never a client-supplied identity field."""
+        if self._jwks_pk is None:
+            if not self.idp:
+                return None, "idp_unconfigured"
+            code, jwks = netutil.request(self.idp + "/jwks.json",
+                                         timeout=2.0, retries=1)
+            self._jwks_pk = jwks["keys"][0]["x"]
+        payload, err = tokens.verify(self._jwks_pk, body.get("token", ""))
+        if err:
+            return None, "token_" + err
+        return payload, None
+
+    def _authenticated_sub(self, body):
+        payload, err = self._authenticated_payload(body)
+        return (payload.get("sub"), None) if payload else (None, err)
+
+    # --- registry revocation enforcement ---------------------------------------
+
+    def _policy(self):
+        """Cached registry policy (0.5 s TTL). Without a configured
+        registry the endpoint can only authenticate tokens; with one, a
+        revoked device or disabled actor is denied here as well."""
+        now = time.time()
+        ts, pol = self._pol_cache
+        if self.registry and now - ts > 0.5:
+            try:
+                code, pol = netutil.request(self.registry + "/policy",
+                                            timeout=2.0, retries=0)
+                if code == 200 and pol.get("status") == "ok":
+                    self._pol_cache = (now, pol)
+            except Exception:
+                pass    # fail with the last known snapshot; snapshot ages
+        return self._pol_cache[1]
+
+    def _revocation_ok(self, identity, action, token_device=None):
+        """(ok, reason): identity must be known, not disabled, its current
+        device must be active, and a token device (when supplied) must still
+        be the registered one and must not be revoked."""
+        pol = self._policy()
+        rec = pol.get("identities", {}).get(identity)
+        if rec is None:
+            self._event(action, "deny", "unknown_identity=%s" % identity)
+            return False, "unknown_identity"
+        if identity in pol.get("disabled", []):
+            self._event(action, "deny", "disabled_actor=%s" % identity)
+            return False, "disabled"
+        current = rec.get("device", "")
+        if current in pol.get("revoked", {}):
+            self._event(action, "deny", "revoked_device=%s" % current)
+            return False, "revoked"
+        if token_device is not None:
+            if token_device != current:
+                self._event(action, "deny", "stale_device=%s current=%s"
+                            % (token_device, current))
+                return False, "stale_device"
+            if token_device in pol.get("revoked", {}):
+                self._event(action, "deny", "revoked_device=%s" % token_device)
+                return False, "revoked"
+        return True, ""
+
+    def _failure(self, session, reason, msg_id, counter=0):
+        """Record a discarded/invalid message as a delivery failure."""
+        if len(session["failures"]) < 100:
+            session["failures"].append({"msg_id": msg_id, "counter": counter,
+                                        "failure": reason})
+
     # --- session ---------------------------------------------------------------
 
     def offer(self, body):
+        # The claimed sender must be proven with a valid IdP token; the
+        # session binds to the token's subject, not to a caller string.
+        payload, err = self._authenticated_payload(body)
+        if err:
+            self._event("session_offer", "deny", "auth=%s" % err)
+            return {"status": "error", "message": "unauthorized",
+                    "reason": err}
+        sender = payload.get("sub", "")
+        token_device = payload.get("device", "")
+        ok, why = self._revocation_ok(sender, "session_offer", token_device)
+        if not ok:
+            return {"status": "error", "message": "sender_not_active",
+                    "reason": why}
         epk, esk = crypto.kem_keypair()
         with self.lock:
             self.session = dict(self.session, sid=body.get("sid") or
@@ -59,18 +148,36 @@ class Endpoint:
                                 eph_sk=esk, state="pending",
                                 counter=0, next_deliver=1, buffer={},
                                 seen=[], delivered=[], failures=[],
-                                peer=body.get("sender", self.peer))
-        self._event("session_offer", "ok", "fresh ephemeral ML-KEM keypair")
+                                peer=sender, token_device=token_device)
+        self._event("session_offer", "ok",
+                    "fresh ephemeral ML-KEM keypair; sender=%s" % sender)
         return {"status": "ok", "sid": self.session["sid"],
                 "encapsulation_key": epk.hex(),
-                "recipient": self.identity, "sender": self.session["peer"]}
+                "recipient": self.identity, "sender": sender}
 
     def establish(self, body):
+        payload, err = self._authenticated_payload(body)
+        if err:
+            self._event("session_establish", "deny", "auth=%s" % err)
+            return {"status": "error", "message": "unauthorized",
+                    "reason": err}
+        sender = payload.get("sub", "")
+        token_device = payload.get("device", "")
+        ok, why = self._revocation_ok(sender, "session_establish", token_device)
+        if not ok:
+            return {"status": "error", "message": "sender_not_active",
+                    "reason": why}
         with self.lock:
             s = self.session
             if s["state"] != "pending" or not s["eph_sk"]:
                 return {"status": "error", "message": "no_pending_session"}
-            sender = body.get("sender", s["peer"])
+            if token_device != s.get("token_device"):
+                self._event("session_establish", "deny", "device_mismatch")
+                return {"status": "error", "message": "device_mismatch"}
+            if sender != s["peer"]:
+                self._event("session_establish", "deny",
+                            "sender_mismatch offer=%s" % s["peer"])
+                return {"status": "error", "message": "sender_mismatch"}
             recipient = self.identity
             shared = crypto.kem_decaps(s["eph_sk"],
                                        bytes.fromhex(body["ciphertext"]))
@@ -95,40 +202,68 @@ class Endpoint:
             recipient = body.get("recipient", "")
             sender = body.get("sender", "")
             msg_id = body.get("msg_id", "")
-            counter = int(body.get("counter", 0))
+            try:
+                counter = int(body.get("counter", 0))
+            except (TypeError, ValueError):
+                counter = 0
+                self._event("message_receive", "deny", "invalid_counter")
+                self._failure(s, "invalid_message", msg_id, counter)
+                return {"status": "ok", "decision": "reject",
+                        "reason": "invalid_message", "msg_id": msg_id}
+
+            def reject(reason):
+                self._event("message_receive", "deny",
+                            "%s msg=%s" % (reason, msg_id))
+                self._failure(s, reason, msg_id, counter)
+                return {"status": "ok", "decision": "reject",
+                        "reason": reason, "msg_id": msg_id}
+
+            context = body.get("context")
+            if context != CONTEXT:
+                return reject("context_mismatch")
+            try:
+                key_version = int(body.get("key_version", -1))
+            except (TypeError, ValueError):
+                return reject("key_version_invalid")
+            pol = self._policy()
+            active = pol.get("active_version", 0)
+            cutoff = pol.get("cutoff_at")
+            in_grace = (key_version == active - 1 and cutoff is not None
+                        and time.time() < cutoff)
+            if key_version != active and not in_grace:
+                return reject("old_key_after_cutoff")
+            # the envelope sender must be the session's AUTHENTICATED
+            # sender (bound at offer/establish); spoofing is rejected
+            if sender != s["peer"]:
+                return reject("sender_mismatch")
             if recipient != self.identity:
-                self._event("message_receive", "deny",
-                            "recipient_binding_mismatch msg=%s" % msg_id)
-                return {"status": "ok", "decision": "reject",
-                        "reason": "recipient_binding_mismatch",
-                        "msg_id": msg_id}
+                return reject("recipient_binding_mismatch")
+            if msg_id != _msg_id(s["sid"], counter):
+                return reject("msg_id_mismatch")
+            ok, why = self._revocation_ok(sender, "message_receive",
+                                          s.get("token_device"))
+            if not ok:
+                return reject("sender_" + why)
+            ok, why = self._revocation_ok(self.identity, "message_receive")
+            if not ok:
+                return reject("recipient_" + why)
             if msg_id in s["seen"]:
-                self._event("message_receive", "deny",
-                            "duplicate msg=%s" % msg_id)
-                return {"status": "ok", "decision": "reject",
-                        "reason": "duplicate_replay", "msg_id": msg_id}
+                return reject("duplicate_replay")
             if counter < s["next_deliver"]:
-                self._event("message_receive", "deny",
-                            "stale counter=%d" % counter)
-                return {"status": "ok", "decision": "reject",
-                        "reason": "stale_counter", "msg_id": msg_id}
+                return reject("stale_counter")
             if counter > s["next_deliver"] + REORDER_WINDOW:
-                s["failures"].append({"msg_id": msg_id,
-                                      "failure": "gap_too_large",
-                                      "counter": counter})
-                return {"status": "ok", "decision": "reject",
-                        "reason": "gap_too_large", "msg_id": msg_id}
+                return reject("gap_too_large")
             try:
                 key = s["key"]
-                aad = _msg_aad(s["sid"], sender, self.identity, counter)
+                aad = _msg_aad(s["sid"], sender, self.identity, counter,
+                               msg_id=msg_id, context=context,
+                               key_version=key_version,
+                               key_commitment=_key_commitment(key.hex()))
                 plaintext = crypto.aead_decrypt(
                     key, bytes.fromhex(body["nonce"]),
                     bytes.fromhex(body["ciphertext"]), aad)
             except Exception:
-                self._event("message_receive", "deny",
-                            "authentication_failed msg=%s" % msg_id)
-                return {"status": "ok", "decision": "reject",
-                        "reason": "authentication_failed", "msg_id": msg_id}
+                return reject("authentication_failed")
             if counter > s["next_deliver"]:
                 s["buffer"][str(counter)] = {
                     "msg_id": msg_id, "plaintext": plaintext.decode("utf-8")}
@@ -179,6 +314,35 @@ class Endpoint:
             if s["state"] not in ("established", "closed") or not s["resumption"]:
                 return {"status": "error", "message": "no_resumable_session"}
             peer = body.get("peer", "")
+            # A lost device must not resume with a captured resumption
+            # token: the resuming party must ALSO present a CURRENT IdP
+            # token whose device matches the identity's REGISTERED
+            # device. After a device loss + rebind the old token names a
+            # device that is no longer registered -> rejected.
+            payload, err = self._authenticated_payload(body)
+            if err:
+                self._event("session_resume", "deny", "auth=%s" % err)
+                return {"status": "ok", "decision": "reject",
+                        "reason": "token_" + err, "peer": peer}
+            sub = payload.get("sub", "")
+            if sub != peer:
+                self._event("session_resume", "deny",
+                            "resume_sub_mismatch sub=%s" % sub)
+                return {"status": "ok", "decision": "reject",
+                        "reason": "resume_sub_mismatch", "peer": peer}
+            pol = self._policy()
+            cur_device = (pol.get("identities", {}).get(peer) or {}).get(
+                "device", "")
+            token_device = payload.get("device", "")
+            if cur_device and token_device != cur_device:
+                self._event("session_resume", "deny",
+                            "stale_device peer=%s" % peer)
+                return {"status": "ok", "decision": "reject",
+                        "reason": "stale_device", "peer": peer}
+            ok, why = self._revocation_ok(peer, "session_resume", token_device)
+            if not ok:
+                return {"status": "ok", "decision": "reject",
+                        "reason": "peer_" + why, "peer": peer}
             expected = hashlib.sha256(s["resumption"] + peer.encode()) \
                 .hexdigest()
             if expected != body.get("resumption_token", ""):
@@ -251,8 +415,15 @@ def main():
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--identity", required=True)
     ap.add_argument("--peer", required=True)
+    ap.add_argument("--idp", default=None,
+                    help="IdP base URL; required for token-authenticated "
+                         "sessions")
+    ap.add_argument("--registry", default=None,
+                    help="registry base URL; enables device-revocation "
+                         "enforcement at the messaging endpoint")
     args = ap.parse_args()
-    ep = Endpoint(args.name, args.port, args.identity, args.peer)
+    ep = Endpoint(args.name, args.port, args.identity, args.peer,
+                  idp=args.idp, registry=args.registry)
     netutil.serve(build_routes(ep), args.port)
     print("endpoint %s (%s) listening on 127.0.0.1:%d"
           % (args.name, args.identity, args.port), flush=True)

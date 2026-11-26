@@ -66,15 +66,25 @@ file.
 4. **Backup integrity** — signature + hash verified before anything loads;
    damaged backups reported and refused.
 5. **Log integrity** — injection-proof structured entries; ML-DSA
-   signatures; `verify_log` reports the first bad entry and why.
-6. **Routine vs suspicious** — F1 **1.0**, median time-to-alert **1.2 s**,
-   **0** false alerts per 1,000 benign events on the labelled sandbox log.
+   signatures; `verify_log` reports the first bad entry and why. A
+   **standalone verifier** (`verifier/track4_verify.py`, imports nothing
+   from the service) re-checks audit/journal/state/backup independently:
+   exit 0 = verified and complete (head recorded out of band), 2 = verified
+   but completeness unestablished, 1 = failed.
+6. **Routine vs suspicious** — practice set (organizer's 22 events): F1
+   **1.0**, median time-to-alert **1.2 s**, **0** false alerts per 1,000
+   benign events. Held-out set (**12,000 events**, independent seeded
+   generator, rules tuned on the practice set only and never changed after
+   the run): F1 0.748, precision **0.999**, 0.1 false alerts per 1,000;
+   per-class results and the documented lateral-movement recall trade-off
+   in `docs/DETECTOR_METRICS.md`.
 7. **Lateral movement** — unknown service-edge bursts flagged even with
    valid credentials; each alert names identity, services, events, rule/path.
 8. **Clock differences** — offsets ±60 s normalized; inversions within 10 s
    annotated; beyond that flagged `order_uncertain`.
-9. **Replay + recipient binding** — AAD binds recipient/session/counter;
-   duplicates and modified bindings rejected.
+9. **Replay + recipient binding** — AAD binds recipient/session/counter
+   plus an HMAC key-commitment tag (AES-GCM is not key-committing);
+   duplicates, renamed metadata and modified bindings rejected.
 10. **Forward secrecy** — per-session ephemeral ML-KEM keys, zeroized at
     accept; session keys zeroized at close.
 11. **Delivery under loss/reordering** — in-order delivery across gaps ≤ 8;
@@ -84,7 +94,8 @@ file.
 
 ## Performance & overhead (measured)
 
-- 29-test suite (23 objective + 6 real-socket integration): ~5.7 s
+- 141-test suite (objective + adversarial + contract + real-socket
+  networked + crypto KAT + standalone verifier + red team): ~35 s
   end-to-end.
 - ML-KEM-768 keygen+encaps+decaps per session: ~1 ms; ML-DSA-65
   sign/verify per audit entry: ~1 ms — log overhead stays low even with
@@ -92,7 +103,13 @@ file.
 - Real networked path: revocation enforced at node-a within ~0.05 s and
   node-c within its 4 s poll (last to enforce); registry `kill -9` recovery via journal
   replay in < 1 s; session keys never written to disk.
-- Detector over the 22-event labelled log: < 5 ms, fully deterministic.
+- Detector over the 22-event labelled log: < 5 ms, fully deterministic;
+  over the 12,000-event held-out log: ~1.5 s in one process.
+- Black-box red team `tools/selfattack.py`: 15 items, 76 severity-
+  classified checks, all PASS (`docs/SELFATTACK_REPORT.md`). Repo gate
+  `scripts/check_all.py`: layout, AST static scan (adapter tier forbids
+  network/subprocess/pickle/ML), secret scan over the tree and the full
+  git history, AI-identity scan, validator, tests — one command.
 
 ## Demo video
 

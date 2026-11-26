@@ -46,3 +46,238 @@ node node-c listening on 127.0.0.1:36503 (poll 4.00s)
 node node-b listening on 127.0.0.1:57353 (poll 2.00s)
 node node-a listening on 127.0.0.1:60649 (poll 0.50s)
 endpoint recv (user-blair) listening on 127.0.0.1:56313
+registry listening on 127.0.0.1:46683
+idp listening on 127.0.0.1:59831
+node node-c listening on 127.0.0.1:35695 (poll 4.00s)
+node node-a listening on 127.0.0.1:40113 (poll 0.50s)
+node node-b listening on 127.0.0.1:42751 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:53493
+idp listening on 127.0.0.1:59897
+registry listening on 127.0.0.1:36557
+node node-a listening on 127.0.0.1:33811 (poll 0.50s)
+node node-c listening on 127.0.0.1:38693 (poll 4.00s)
+node node-b listening on 127.0.0.1:53269 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:55837
+registry listening on 127.0.0.1:51013
+idp listening on 127.0.0.1:41967
+node node-c listening on 127.0.0.1:58051 (poll 4.00s)
+node node-b listening on 127.0.0.1:45575 (poll 2.00s)
+node node-a listening on 127.0.0.1:36993 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:53715
+idp listening on 127.0.0.1:41147
+registry listening on 127.0.0.1:49155
+node node-b listening on 127.0.0.1:49863 (poll 2.00s)
+node node-a listening on 127.0.0.1:37097 (poll 0.50s)
+node node-c listening on 127.0.0.1:40363 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:58811
+registry listening on 127.0.0.1:49301
+idp listening on 127.0.0.1:47057
+node node-a listening on 127.0.0.1:55767 (poll 0.50s)
+node node-c listening on 127.0.0.1:47831 (poll 4.00s)
+node node-b listening on 127.0.0.1:33343 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:59309
+idp listening on 127.0.0.1:60521
+registry listening on 127.0.0.1:45253
+node node-a listening on 127.0.0.1:49201 (poll 0.50s)
+node node-b listening on 127.0.0.1:46867 (poll 2.00s)
+node node-c listening on 127.0.0.1:33307 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:40105
+idp listening on 127.0.0.1:41497
+registry listening on 127.0.0.1:34725
+node node-b listening on 127.0.0.1:46563 (poll 2.00s)
+node node-a listening on 127.0.0.1:43273 (poll 0.50s)
+node node-c listening on 127.0.0.1:36563 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:36151
+idp listening on 127.0.0.1:39349
+registry listening on 127.0.0.1:60957
+node node-c listening on 127.0.0.1:50053 (poll 4.00s)
+node node-a listening on 127.0.0.1:42731 (poll 0.50s)
+node node-b listening on 127.0.0.1:56069 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:47893
+registry listening on 127.0.0.1:34181
+idp listening on 127.0.0.1:42987
+node node-b listening on 127.0.0.1:40257 (poll 2.00s)
+node node-c listening on 127.0.0.1:45001 (poll 4.00s)
+node node-a listening on 127.0.0.1:38203 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:34073
+idp listening on 127.0.0.1:46771
+registry listening on 127.0.0.1:39083
+node node-a listening on 127.0.0.1:50749 (poll 0.50s)
+node node-b listening on 127.0.0.1:38063 (poll 2.00s)
+node node-c listening on 127.0.0.1:51301 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:52965
+idp listening on 127.0.0.1:49533
+registry listening on 127.0.0.1:53783
+node node-a listening on 127.0.0.1:33291 (poll 0.50s)
+node node-c listening on 127.0.0.1:58373 (poll 4.00s)
+node node-b listening on 127.0.0.1:49577 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:48775
+idp listening on 127.0.0.1:60435
+registry listening on 127.0.0.1:35221
+node node-a listening on 127.0.0.1:53093 (poll 0.50s)
+node node-b listening on 127.0.0.1:37215 (poll 2.00s)
+node node-c listening on 127.0.0.1:60271 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:50175
+idp listening on 127.0.0.1:43133
+registry listening on 127.0.0.1:37427
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+node node-c listening on 127.0.0.1:51981 (poll 4.00s)
+node node-b listening on 127.0.0.1:58957 (poll 2.00s)
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+node node-a listening on 127.0.0.1:55269 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:45031
+idp listening on 127.0.0.1:37497
+registry listening on 127.0.0.1:53643
+node node-a listening on 127.0.0.1:36431 (poll 0.50s)
+node node-b listening on 127.0.0.1:35693 (poll 2.00s)
+node node-c listening on 127.0.0.1:53197 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:47441
+idp listening on 127.0.0.1:39161
+registry listening on 127.0.0.1:35193
+idp listening on 127.0.0.1:50097
+registry listening on 127.0.0.1:59449
+idp listening on 127.0.0.1:44389
+registry listening on 127.0.0.1:58947
+node node-b listening on 127.0.0.1:47185 (poll 2.00s)
+node node-c listening on 127.0.0.1:59699 (poll 4.00s)
+node node-a listening on 127.0.0.1:41881 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:46255
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:39037
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:40781
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:60131
+idp listening on 127.0.0.1:59603
+registry listening on 127.0.0.1:35571
+node node-c listening on 127.0.0.1:41047 (poll 4.00s)
+node node-b listening on 127.0.0.1:56945 (poll 2.00s)
+node node-a listening on 127.0.0.1:49373 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:48407
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:56919
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:54175
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:36463
+idp listening on 127.0.0.1:57413
+registry listening on 127.0.0.1:36791
+node node-c listening on 127.0.0.1:47651 (poll 4.00s)
+node node-a listening on 127.0.0.1:50821 (poll 0.50s)
+node node-b listening on 127.0.0.1:33317 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:48677
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:48563
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:39995
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:38823
+idp listening on 127.0.0.1:39565
+registry listening on 127.0.0.1:56069
+node node-c listening on 127.0.0.1:60707 (poll 4.00s)
+node node-b listening on 127.0.0.1:50985 (poll 2.00s)
+node node-a listening on 127.0.0.1:41507 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:58989
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:57749
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:38877
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:42611
+idp listening on 127.0.0.1:51845
+registry listening on 127.0.0.1:38213
+node node-c listening on 127.0.0.1:42257 (poll 4.00s)
+node node-a listening on 127.0.0.1:60141 (poll 0.50s)
+node node-b listening on 127.0.0.1:55975 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:40515
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:41661
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:57471
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:56219
+idp listening on 127.0.0.1:50103
+registry listening on 127.0.0.1:43949
+node node-b listening on 127.0.0.1:45731 (poll 2.00s)
+node node-c listening on 127.0.0.1:41009 (poll 4.00s)
+node node-a listening on 127.0.0.1:35779 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:47933
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:59229
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:41089
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:41319
+idp listening on 127.0.0.1:58647
+registry listening on 127.0.0.1:47317
+node node-c listening on 127.0.0.1:53627 (poll 4.00s)
+node node-a listening on 127.0.0.1:60257 (poll 0.50s)
+node node-b listening on 127.0.0.1:57493 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:54033
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:42599
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:59099
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:44881
+idp listening on 127.0.0.1:33995
+registry listening on 127.0.0.1:59671
+node node-b listening on 127.0.0.1:43517 (poll 2.00s)
+node node-a listening on 127.0.0.1:33067 (poll 0.50s)
+node node-c listening on 127.0.0.1:34335 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:60661
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:48129
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:34531
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:52405
+idp listening on 127.0.0.1:48723
+registry listening on 127.0.0.1:46051
+node node-a listening on 127.0.0.1:55211 (poll 0.50s)
+node node-c listening on 127.0.0.1:42427 (poll 4.00s)
+node node-b listening on 127.0.0.1:38535 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:35467
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:55391
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:34419
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:41253
+idp listening on 127.0.0.1:54521
+registry listening on 127.0.0.1:40729
+node node-c listening on 127.0.0.1:36823 (poll 4.00s)
+node node-b listening on 127.0.0.1:35601 (poll 2.00s)
+node node-a listening on 127.0.0.1:59251 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:53019
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:55179
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:43037
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:49549
+registry listening on 127.0.0.1:37607
+idp listening on 127.0.0.1:57815
+node node-b listening on 127.0.0.1:50449 (poll 2.00s)
+node node-a listening on 127.0.0.1:44055 (poll 0.50s)
+node node-c listening on 127.0.0.1:55325 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:53695
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:51737
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:49909
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:59419
+idp listening on 127.0.0.1:41865
+registry listening on 127.0.0.1:44919
+node node-b listening on 127.0.0.1:35017 (poll 2.00s)
+node node-c listening on 127.0.0.1:40571 (poll 4.00s)
+node node-a listening on 127.0.0.1:50127 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:47943
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:55419
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:38839
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:57709
+idp listening on 127.0.0.1:35357
+registry listening on 127.0.0.1:45831
+node node-c listening on 127.0.0.1:39127 (poll 4.00s)
+node node-a listening on 127.0.0.1:53557 (poll 0.50s)
+node node-b listening on 127.0.0.1:51775 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:58161
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:50455
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:54841
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:42545
+idp listening on 127.0.0.1:52189
+registry listening on 127.0.0.1:36365
+node node-c listening on 127.0.0.1:56201 (poll 4.00s)
+node node-b listening on 127.0.0.1:36133 (poll 2.00s)
+node node-a listening on 127.0.0.1:38773 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:38643
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:56865
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:56719
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:39165
+idp listening on 127.0.0.1:47779
+registry listening on 127.0.0.1:52327
+node node-c listening on 127.0.0.1:46591 (poll 4.00s)
+node node-b listening on 127.0.0.1:40933 (poll 2.00s)
+node node-a listening on 127.0.0.1:56931 (poll 0.50s)
+endpoint recv (user-blair) listening on 127.0.0.1:60009
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:54583
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:47357
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:39133
+idp listening on 127.0.0.1:55777
+registry listening on 127.0.0.1:59899
+node node-c listening on 127.0.0.1:36989 (poll 4.00s)
+node node-a listening on 127.0.0.1:43471 (poll 0.50s)
+node node-b listening on 127.0.0.1:35785 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:39419
+endpoint msgr-node-c (node-c) listening on 127.0.0.1:58815
+endpoint msgr-node-b (node-b) listening on 127.0.0.1:57929
+endpoint msgr-node-a (node-a) listening on 127.0.0.1:53577

@@ -1,0 +1,155 @@
+{
+ "title": "held-out 12000 events (seed 20261126)",
+ "events": 12000,
+ "labelled_events": 12000,
+ "detector": "deterministic rule/graph detector; no AI/ML; rules tuned on the 22-event practice set only",
+ "overall": {
+  "f1": 0.748,
+  "precision": 0.999,
+  "recall": 0.598,
+  "true_positives": 1200,
+  "false_positives": 1,
+  "missed": 808,
+  "benign_events": 9992,
+  "false_alerts_per_1000_benign": 0.1,
+  "median_time_to_alert_s": 0.2,
+  "alerts_raised": 1201
+ },
+ "incidents": {
+  "truth": 937,
+  "detected": 637,
+  "missed_examples": [
+   [
+    "evt-001000",
+    "evt-002323"
+   ],
+   [
+    "evt-005537",
+    "evt-010104",
+    "evt-010267"
+   ],
+   [
+    "evt-005394",
+    "evt-009369"
+   ],
+   [
+    "evt-002281",
+    "evt-002607",
+    "evt-008491"
+   ],
+   [
+    "evt-003972",
+    "evt-005090",
+    "evt-005175",
+    "evt-005574"
+   ],
+   [
+    "evt-000386",
+    "evt-005050",
+    "evt-005556",
+    "evt-006327"
+   ],
+   [
+    "evt-000986",
+    "evt-001225",
+    "evt-005120",
+    "evt-006562"
+   ],
+   [
+    "evt-000140",
+    "evt-005163",
+    "evt-006681",
+    "evt-010095"
+   ]
+  ],
+  "false_examples": [
+   [
+    "evt-008939"
+   ]
+  ]
+ },
+ "per_class": {
+  "approved_change": {
+   "support": 1575,
+   "precision": null,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 0,
+   "fn": 0
+  },
+  "isolated_denial": {
+   "support": 256,
+   "precision": 0.0,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 1,
+   "fn": 0
+  },
+  "lateral_movement_candidate": {
+   "support": 926,
+   "precision": 0.997,
+   "recall": 0.314,
+   "f1": 0.478,
+   "tp": 291,
+   "fp": 1,
+   "fn": 635
+  },
+  "review_after_role_change": {
+   "support": 456,
+   "precision": 0.997,
+   "recall": 0.849,
+   "f1": 0.917,
+   "tp": 387,
+   "fp": 1,
+   "fn": 69
+  },
+  "routine": {
+   "support": 4061,
+   "precision": 0.0,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 1,
+   "fn": 0
+  },
+  "routine_clock_offset": {
+   "support": 2585,
+   "precision": 0.0,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 1,
+   "fn": 0
+  },
+  "routine_delayed_delivery": {
+   "support": 769,
+   "precision": 0.0,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 1,
+   "fn": 0
+  },
+  "routine_denial": {
+   "support": 746,
+   "precision": 0.0,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 1,
+   "fn": 0
+  },
+  "unexpected_role_change": {
+   "support": 626,
+   "precision": 0.998,
+   "recall": 0.834,
+   "f1": 0.909,
+   "tp": 522,
+   "fp": 1,
+   "fn": 104
+  }
+ },
+ "error_note": "Rules were NOT changed after this run (held-out discipline)."
+}

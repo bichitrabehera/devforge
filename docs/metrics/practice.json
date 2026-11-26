@@ -1,0 +1,108 @@
+{
+ "title": "practice (organizer set, 22 events)",
+ "events": 22,
+ "labelled_events": 22,
+ "detector": "deterministic rule/graph detector; no AI/ML; rules tuned on the 22-event practice set only",
+ "overall": {
+  "f1": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "true_positives": 5,
+  "false_positives": 0,
+  "missed": 0,
+  "benign_events": 17,
+  "false_alerts_per_1000_benign": 0.0,
+  "median_time_to_alert_s": 1.2,
+  "alerts_raised": 5
+ },
+ "incidents": {
+  "truth": 2,
+  "detected": 2,
+  "missed_examples": [],
+  "false_examples": []
+ },
+ "per_class": {
+  "approved_change": {
+   "support": 3,
+   "precision": null,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 0,
+   "fn": 0
+  },
+  "isolated_denial": {
+   "support": 1,
+   "precision": null,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 0,
+   "fn": 0
+  },
+  "lateral_movement_candidate": {
+   "support": 3,
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "tp": 3,
+   "fp": 0,
+   "fn": 0
+  },
+  "review_after_role_change": {
+   "support": 1,
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "tp": 1,
+   "fp": 0,
+   "fn": 0
+  },
+  "routine": {
+   "support": 9,
+   "precision": null,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 0,
+   "fn": 0
+  },
+  "routine_clock_offset": {
+   "support": 1,
+   "precision": null,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 0,
+   "fn": 0
+  },
+  "routine_delayed_delivery": {
+   "support": 1,
+   "precision": null,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 0,
+   "fn": 0
+  },
+  "routine_denial": {
+   "support": 2,
+   "precision": null,
+   "recall": null,
+   "f1": null,
+   "tp": 0,
+   "fp": 0,
+   "fn": 0
+  },
+  "unexpected_role_change": {
+   "support": 1,
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "tp": 1,
+   "fp": 0,
+   "fn": 0
+  }
+ },
+ "error_note": "Rules were NOT changed after this run (held-out discipline)."
+}

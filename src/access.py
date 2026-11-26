@@ -188,8 +188,10 @@ def op_grant_role(request):
         st.save_state(st_)
         return {"status": "ok", "decision": "deny", "reason": why,
                 "subject": subject, "role": role}
-    approvals = load_approvals(request.get("approvals_path"),
-                               request.get("approvals"))
+    # Approvals come from a TRUSTED FILE ONLY (repo-root allowlist).
+    # Inline caller-supplied approval payloads were removed: an attacker
+    # could otherwise forge an approval inside the request itself.
+    approvals = load_approvals(request.get("approvals_path"), None)
     approved = approval_matches(approvals, {
         "approval_id": approval_id, "subject": subject,
         "operation": "grant_role", "role": role, "at": st.now()})
@@ -219,8 +221,8 @@ def op_revoke_role(request):
         st.save_state(st_)
         return {"status": "ok", "decision": "deny", "reason": why,
                 "subject": subject}
-    approvals = load_approvals(request.get("approvals_path"),
-                               request.get("approvals"))
+    # Trusted file source only - see op_grant_role.
+    approvals = load_approvals(request.get("approvals_path"), None)
     approved = approval_matches(approvals, {
         "approval_id": approval_id, "subject": subject,
         "operation": "revoke_role", "at": st.now()})

@@ -18,6 +18,8 @@ device's owner can re-enrol with fresh key material; no other user or the
 service's own keys are affected.
 """
 
+import secrets
+
 from . import audit, crypto
 from . import state as st
 
@@ -68,6 +70,9 @@ def op_setup(request):
     state["roles"] = dict(request.get("roles", {}) or {})
     state["admins"] = list(request.get("admins", ["user-admin"]))
     state["disabled"] = list(request.get("disabled", []) or [])
+    state["recovery_bindings"] = dict(request.get("recovery_bindings", {}) or {})
+    state["recovery_public_keys"] = dict(
+        request.get("recovery_public_keys", {}) or {})
     key_material = request.get("key_material", "")
     if key_material:
         state["key_material_digest"] = crypto.sha256_hex(str(key_material))
@@ -318,6 +323,94 @@ def op_re_enroll(request):
             "kem_fingerprint": crypto.fp(pk),
             "dsa_fingerprint": crypto.fp(dpk),
             "other_users_unaffected": True}
+
+
+def op_recover_device(request):
+    """REAL lost-device recovery (no lost private key, no or-True bypass).
+
+    The owner authenticates through a SEPARATE recovery identity whose
+    ML-DSA PUBLIC key was registered at setup; the signed request must name
+    the owner, the lost device and a DISTINCT replacement device. The
+    service revokes the lost device, closes that owner's sessions, mints a
+    fresh device keypair at runtime, and keeps the lost device revoked.
+    Private material is never returned or logged; only public fingerprints
+    are exposed.
+    """
+    state = st.load_state()
+    actor = request.get("actor", "")
+    recovery_actor = request.get("recovery_actor", "")
+    bound = state.get("recovery_bindings", {}).get(actor)
+    if not actor or not bound or recovery_actor != bound:
+        audit.append(state, recovery_actor or "unknown", "recovery_enrol",
+                     request.get("device", ""), "deny",
+                     detail="no_recovery_binding",
+                     request_id=request.get("request_id", ""))
+        st.save_state(state)
+        return {"status": "error", "message": "recovery_not_authorized",
+                "reason": "no_recovery_binding"}
+    old_device = request.get("old_device") or \
+        state["identities"].get(actor, {}).get("device", "")
+    if not old_device:
+        return {"status": "error", "message": "no_lost_device"}
+    new_device = request.get("device") or (
+        "device-%s-%s" % (actor, secrets.token_hex(4)))
+    if new_device == old_device:
+        return {"status": "error", "message": "replacement_device_required"}
+    for other, ident in state["identities"].items():
+        if other != actor and ident.get("device") == new_device:
+            return {"status": "error", "message": "device_already_bound"}
+    proof = request.get("recovery_proof", "")
+    verify_key = state.get("recovery_public_keys", {}).get(recovery_actor, "")
+    signed = crypto.canonical({"actor": actor, "old_device": old_device,
+                               "device": new_device}).encode()
+    if not verify_key or not crypto.dsa_verify(verify_key, signed, proof):
+        audit.append(state, recovery_actor, "recovery_enrol", new_device,
+                     "deny", detail="bad_recovery_signature",
+                     request_id=request.get("request_id", ""))
+        st.save_state(state)
+        return {"status": "error", "message": "recovery_not_authorized",
+                "reason": "bad_recovery_signature"}
+    if old_device not in state["revoked"]:
+        state["revocation_epoch"] += 1
+        state["revoked"][old_device] = {
+            "revoked_at": st.now(), "epoch": state["revocation_epoch"],
+            "reason": "device_loss_recovery"}
+        st.journal_append(state, {"kind": "revocation", "device": old_device,
+                           "actor": actor,
+                           "epoch": state["revocation_epoch"],
+                           "revoked_at": state["revoked"][old_device]["revoked_at"]})
+        audit.append(state, recovery_actor, "revoke", old_device, "ok",
+                     detail="recovery of %s" % actor)
+    # Invalidate that owner's live sessions: a lost device cannot resume one.
+    for session in state["sessions"].values():
+        if actor in (session.get("sender"), session.get("recipient")):
+            session["state"] = "closed"
+            session["key"] = None
+            session["ephemeral_sk"] = None
+            session["resumption_secret"] = None   # old tokens cannot resume
+            session["buffer"] = {}
+    pk, sk = crypto.kem_keypair()
+    dpk, dsk = crypto.dsa_keypair()
+    ident = state["identities"].setdefault(actor, {})
+    ident.update({"device": new_device, "kem_pk": pk.hex(), "kem_sk": sk.hex(),
+                  "dsa_pk": dpk.hex(), "dsa_sk": dsk.hex(), "status": "active"})
+    if actor in state["disabled"]:
+        state["disabled"].remove(actor)
+    state["revocation_epoch"] += 1
+    st.journal_append(state, {"kind": "re_enroll", "device": new_device,
+                       "old_device": old_device, "actor": actor,
+                       "recovery_sub": recovery_actor,
+                       "epoch": state["revocation_epoch"], "ts": st.now()})
+    audit.append(state, recovery_actor, "recovery_enrol", new_device, "ok",
+                 detail="actor=%s old_device=%s epoch=%d"
+                        % (actor, old_device, state["revocation_epoch"]),
+                 request_id=request.get("request_id", ""))
+    st.save_state(state)
+    return {"status": "ok", "actor": actor, "device": new_device,
+            "old_device": old_device, "recovery_actor": recovery_actor,
+            "old_device_still_revoked": True,
+            "kem_fingerprint": crypto.fp(pk), "dsa_fingerprint": crypto.fp(dpk),
+            "sessions_invalidated": True}
 
 
 def op_disable(request):

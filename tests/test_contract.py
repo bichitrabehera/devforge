@@ -65,7 +65,7 @@ class TestSetupReset(ContractTest):
         r = dispatch({"op": "read", "actor": "mallory", "asset": "a.txt"})
         self.assertEqual(r["decision"], "deny")
         # disabled actor cannot protected_read either
-        pk, _ = ml_kem_768.keygen()
+        pk, _ = crypto.kem_keypair()
         r = dispatch({"op": "protected_read", "actor": "mallory",
                       "asset": "a.txt", "challenge": "c",
                       "public_key": base64.b64encode(pk).decode()})
@@ -112,7 +112,7 @@ class TestProtectedRead(ContractTest):
         super().setUp()
         self.r = dispatch({"op": "setup", "owners": {"brief": "maya"},
                            "contents": {"brief": "demo note"}})
-        self.client_pk, self.client_sk = ml_kem_768.keygen()
+        self.client_pk, self.client_sk = crypto.kem_keypair()
 
     def _protected_read(self, challenge="challenge-123", actor="maya",
                         asset="brief"):
@@ -125,7 +125,7 @@ class TestProtectedRead(ContractTest):
         r = self._protected_read()
         self.assertEqual(r["decision"], "allow")
         ct = base64.b64decode(r["ciphertext"])
-        shared = ml_kem_768.decaps(self.client_sk, ct)   # client side
+        shared = crypto.kem_decaps(self.client_sk, ct)   # client side
         expected = hmac_mod.new(
             shared, ("challenge-123" + "demo note").encode("utf-8"),
             hashlib.sha256).hexdigest()
@@ -193,12 +193,12 @@ class TestAdapterEndToEnd(ContractTest):
                        "key_material": "synthetic-only"})
         self.assertTrue(r["ready"], err)
         self.assertNotIn("synthetic-only", err)
-        pk, sk = ml_kem_768.keygen()
+        pk, sk = crypto.kem_keypair()
         r, err = call({"op": "protected_read", "actor": "maya",
                        "asset": "brief", "challenge": "zz-challenge",
                        "public_key": base64.b64encode(pk).decode()})
         self.assertEqual(r["decision"], "allow", err)
-        shared = ml_kem_768.decaps(sk, base64.b64decode(r["ciphertext"]))
+        shared = crypto.kem_decaps(sk, base64.b64decode(r["ciphertext"]))
         expected = hmac_mod.new(shared, b"zz-challengedemo note",
                                 hashlib.sha256).hexdigest()
         self.assertEqual(r["proof"], expected)

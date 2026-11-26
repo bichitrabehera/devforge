@@ -31,7 +31,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src import crypto, netutil  # noqa: E402
+from src import crypto, netutil, tokens  # noqa: E402
 from src import audit  # noqa: E402
 
 REGISTRY_DIR = os.environ.get("TRACK4_REGISTRY_DIR",
@@ -138,7 +138,7 @@ def _load_or_recover():
         for rec in _journal_read():
             if not _journal_verify(rec, keys["dsa_pk"]):
                 continue
-            if rec.get("kind") == "revocation":
+            if rec.get("kind") in ("revocation", "re_enroll"):
                 max_epoch = max(max_epoch, rec.get("epoch", 0))
             elif rec.get("kind") == "rotation" and rec.get("step") == "commit":
                 max_ver = max(max_ver, rec.get("version", 0))
@@ -186,11 +186,16 @@ def _apply_record(state, rec):
             if rec.get("actor") and rec["actor"] not in state["disabled"]:
                 state["disabled"].append(rec["actor"])
     elif kind == "re_enroll":
-        state["revoked"].pop(rec["device"], None)
+        # Genuine device loss: the OLD device stays revoked after recovery.
+        # The journal only advances the epoch and binds the actor to a NEW
+        # device; it never un-revokes a device.
         if rec["epoch"] > state.get("revocation_epoch", 0):
             state["revocation_epoch"] = rec["epoch"]
-        if rec.get("actor") and rec["actor"] in state["disabled"]:
-            state["disabled"].remove(rec["actor"])
+        if rec.get("actor"):
+            if rec["actor"] in state["disabled"]:
+                state["disabled"].remove(rec["actor"])
+            state["identities"].setdefault(rec["actor"], {})["device"] = \
+                rec["device"]
 
 
 def _state_digest(snapshot):
@@ -282,6 +287,59 @@ def h_policy(body, state):
             "identities": state["identities"]}
 
 
+# Control-plane authentication: /revoke and /re_enroll are SELF-SERVICE
+# (the caller must present a valid, unexpired IdP ML-DSA token whose
+# subject matches the actor being revoked/re-enrolled). The IdP base URL
+# and its JWKS public key are configured at startup.
+IDP_BASE = None
+_jwks_pk = None
+# Organizer-approved recovery bindings (public names, not secrets).
+RECOVERY_OF = {"user-blair": "recovery-user-blair"}
+IDP_ADMINS = {"user-admin"}
+
+
+def _idp_public_key():
+    global _jwks_pk
+    if _jwks_pk is None:
+        if not IDP_BASE:
+            return None
+        code, jwks = netutil.request(IDP_BASE + "/jwks.json",
+                                     timeout=2.0, retries=1)
+        _jwks_pk = jwks["keys"][0]["x"]
+    return _jwks_pk
+
+
+def _authenticated_actor(body, actor):
+    """Return (ok, reason). Self-service: token subject must equal actor."""
+    pk = _idp_public_key()
+    if pk is None:
+        return False, "idp_unconfigured"
+    payload, err = tokens.verify(pk, body.get("token", ""))
+    if err:
+        return False, "token_" + err
+    if payload.get("sub") != actor:
+        return False, "not_permitted"
+    return True, ""
+
+
+def _authorized_recovery(body, actor):
+    """Re-enrol authorization: owner, bound recovery identity or admin.
+
+    The recovery identity proves possession of its OWN ML-DSA key through
+    the IdP token; knowing the user id alone never authorizes enrolment.
+    """
+    pk = _idp_public_key()
+    if pk is None:
+        return False, "idp_unconfigured", ""
+    payload, err = tokens.verify(pk, body.get("token", ""))
+    if payload is None:
+        return False, "token_" + err, ""
+    sub = payload.get("sub", "")
+    if sub == actor or sub == RECOVERY_OF.get(actor) or sub in IDP_ADMINS:
+        return True, "", sub
+    return False, "not_permitted", sub
+
+
 def h_revoke(body, state):
     device = body.get("device", "")
     actor = body.get("actor", "")
@@ -289,6 +347,12 @@ def h_revoke(body, state):
         device = state["identities"].get(actor, {}).get("device", actor)
     if not device:
         return {"status": "error", "message": "missing_device_or_actor"}
+    ok, why = _authenticated_actor(body, actor)
+    if not ok:
+        audit.append(state, actor, "revoke", device, "deny",
+                     detail="auth=%s" % why, ts=time.time())
+        _save(state)
+        return {"status": "error", "message": "unauthorized", "reason": why}
     if device not in state["revoked"]:
         state["revocation_epoch"] += 1
         state["revoked"][device] = {"revoked_at": time.time(),
@@ -312,22 +376,58 @@ def h_revoke(body, state):
 
 
 def h_re_enroll(body, state):
+    """Lost-device recovery: authorize via a SEPARATE recovery identity,
+    revoke the lost device, register a DISTINCT replacement, and leave the
+    lost device revoked. Active tokens/sessions are invalidated indirectly:
+    every node and messaging endpoint checks the revoked device in the
+    current policy before accepting them."""
     actor = body.get("actor", "")
-    device = body.get("device", "") or \
-        state["identities"].get(actor, {}).get("device", actor)
-    if device in state["revoked"]:
-        del state["revoked"][device]
+    old_device = body.get("old_device") or \
+        state["identities"].get(actor, {}).get("device", "")
+    device = body.get("device", "")
+    ok, why, recovery_sub = _authorized_recovery(body, actor)
+    if not ok:
+        audit.append(state, actor, "recovery_enrol", device or old_device,
+                     "deny", detail="auth=%s" % why, ts=time.time())
+        _save(state)
+        return {"status": "error", "message": "unauthorized", "reason": why}
+    if not actor or not device or device == old_device:
+        return {"status": "error", "message": "replacement_device_required"}
+    for other, rec in state["identities"].items():
+        if other != actor and rec.get("device") == device:
+            return {"status": "error", "message": "device_already_bound"}
+    # Revoke the lost device first (durable, signed journal record).
+    if old_device and old_device not in state["revoked"]:
+        state["revocation_epoch"] += 1
+        state["revoked"][old_device] = {
+            "revoked_at": time.time(),
+            "epoch": state["revocation_epoch"],
+            "reason": "device_loss_recovery"}
+        _journal_append(state, {"kind": "revocation", "device": old_device,
+                                "actor": actor,
+                                "epoch": state["revocation_epoch"],
+                                "revoked_at":
+                                    state["revoked"][old_device]["revoked_at"]})
+        audit.append(state, recovery_sub, "revoke", old_device, "ok",
+                     detail="recovery of %s; epoch=%d"
+                            % (actor, state["revocation_epoch"]),
+                     ts=time.time())
     state["revocation_epoch"] += 1
     if actor in state["disabled"]:
         state["disabled"].remove(actor)
     state["identities"].setdefault(actor, {})["device"] = device
     _journal_append(state, {"kind": "re_enroll", "device": device,
-                            "actor": actor,
+                            "old_device": old_device,
+                            "actor": actor, "recovery_sub": recovery_sub,
                             "epoch": state["revocation_epoch"]})
-    audit.append(state, "registry", "re_enroll", device, "ok",
-                 detail="actor=%s" % actor, ts=time.time())
+    audit.append(state, recovery_sub, "recovery_enrol", device, "ok",
+                 detail="actor=%s old_device=%s epoch=%d"
+                        % (actor, old_device, state["revocation_epoch"]),
+                 ts=time.time())
     _save(state)
     return {"status": "ok", "device": device, "actor": actor,
+            "old_device": old_device, "recovery_sub": recovery_sub,
+            "old_device_still_revoked": old_device in state["revoked"],
             "epoch": state["revocation_epoch"]}
 
 
@@ -477,9 +577,14 @@ ROUTES = {
 
 
 def main():
+    global IDP_BASE
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8300)
+    ap.add_argument("--idp", default=None,
+                    help="IdP base URL; required for authenticated "
+                         "control-plane ops (revoke/re_enroll)")
     args = ap.parse_args()
+    IDP_BASE = args.idp
     state = _load_or_recover()
     netutil.serve(ROUTES, args.port, state=state,
                   lock=threading.RLock())

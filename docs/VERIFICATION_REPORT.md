@@ -5,13 +5,23 @@ claim below was executed in this repository; nothing is asserted from
 design reading alone. Reproduce everything with:
 
 ```
-python3 -m unittest discover -s tests          # 89 tests
+python3 -m unittest discover -s tests          # 96 tests
+# (ResourceWarnings from test sockets/files are non-fatal)
 python3 demo.py                                # embedded, 48 steps
 python3 demo_networked.py                      # 6 real processes, 24 checks
 python3 detector.py --events practice/events.csv --labels practice/labels.csv --approvals practice/approvals.json
 ```
 
 ## Overall verdict: **WORKING**
+
+Second-pass audit (independent): confirmed the round-2 fixes hold
+(detector adapter JSON, msg_id binding, resumption ratchet, approvals
+path allowlist, non-admin grant denial, cross-process revoke
+persistence). New findings were trust-model gaps in ops the organizer
+contract does NOT define; all were hardened (see
+`docs/SECURITY_ASSESSMENT.md` round 3): clock rewind rejected
+(monotonic), inline forged approvals dropped (trusted file source only),
+pending-session hijack closed, foreign resumption-token minting closed.
 
 All 12 published goals are implemented and verified by executed tests.
 Five defects were found during this audit; all were fixed and converted to
@@ -164,6 +174,94 @@ RFC 5869 HKDF on stdlib).
   and pass, and the validator passed 23/23 earlier today on unchanged
   contract paths.
 
+## Third-pass findings (networked mode) - fixed this session
+
+- IdP re-registration hijack → first-write-wins registration
+  (`services/idp_server.py::h_register`); remaining mock-IdP gap (token
+  issuance without device proof-of-possession) on the punch list.
+- Unauthenticated registry `/revoke` + `/re_enroll` → self-service ML-DSA
+  token auth, subject==actor, JWKS-verified (`services/registry_server.py`,
+  `--idp` required; fail-closed without).
+- Messaging sender spoofing → token-bound sessions
+  (`services/messenger_server.py`, offer/establish require token,
+  envelopes must match the authenticated session sender).
+- New networked negative tests: `test_07_control_plane_and_session_auth`
+  (6 assertions), authenticated flows in `test_03`/`test_05`.
+
+## Fifth-pass findings - fixed this session
+
+- Device-proof replay inside the freshness window -> single-use proof
+  ledger at the IdP (`proof_replayed` on reuse).
+- Uncapped attacker-controlled `ttl_s` (24 h tokens) -> server-side cap
+  `MAX_TOKEN_TTL_S = 3600`, asserted against the decoded token payload.
+
+## Sixth-pass findings - fixed this session
+
+- Replaying a used proof with changed UNSIGNED fields (`ttl_s`,
+  `clock_skew`) bypassed the in-memory ledger. The ledger now hashes only
+  the signed proof fields plus the signature
+  (`tokens.device_proof_core()`), so a tweaked replay returns
+  `proof_replayed`.
+- Client-supplied `clock_skew` put `iat` 86,400 s in the future and
+  verification accepted it. The IdP now ignores client skew, and
+  `tokens.verify()` rejects `iat > now + 60 s` as
+  `token_not_yet_valid` for all verifiers.
+- Regression assertions: `test_07_control_plane_and_session_auth`
+  steps 3c-2 and 3e.
+
+## Auditor pass 5 - capability-claims correction (implemented)
+
+Every gap in the pass-5 capability table was closed in code, demo, or tests:
+
+1. **Node-to-node messaging** - each node process now gossips an
+   encrypted, authenticated policy-ack to the NEXT node's messaging
+   inbox (ring a->b->c->a) over the same E2E machinery as user
+   messaging: PoP token minted from the node's own registered key,
+   fresh ephemeral ML-KEM session, AEAD bound to
+   sid/sender/recipient/counter. The demo runs 9 processes (registry,
+   IdP, 3 enforcement nodes, 4 messaging endpoints) and asserts all
+   three hops deliver (`gossip_node-a_to_node-b`,
+   `gossip_node-b_to_node-c`, `gossip_node-c_to_node-a`).
+   Regression: `test_09_node_to_node_gossip`. Failed gossip retries on
+   the next poll and can never break enforcement.
+2. **Lost-device-key recovery** - new IdP `/rebind`: an ADMIN token
+   replaces a device's registered key (lost keys cannot sign proofs, so
+   self-service recovery is impossible by design). Demo: old key can no
+   longer mint tokens, non-admin rebind refused, owner proves the NEW
+   key, self-service re-enrol clears the revocation, access restored.
+   Regression: `test_08_lost_key_rebind_admin_only`.
+3. **Fake check removed** - `re_enrolled_back` now asserts the denial
+   reason is no longer `revoked` (ownership deny is fine; a revoked
+   deny is not).
+4. **Still-revoked survives the REAL restart** - the demo no longer
+   re-enrols Blair before the SIGKILL: the restarted registry still
+   carries device-blair as revoked and node-c still enforces it
+   (`revocations_survive_crash`, `revoked_still_enforced_after_restart`).
+5. **Every node checked** - test_03 now asserts node-a, node-b AND
+   node-c enforce the revocation.
+6. **Forward-secrecy compromise experiment** - the attacker is handed
+   ALL long-term material in state.json (service keys, identity
+   KEM/DSA secrets, historical key versions) plus captured ciphertexts
+   and the KEM encapsulation: decryption fails for every candidate
+   (`TestForwardSecrecyCompromise`).
+
+## Practice-procedure conformance pass (detector)
+
+Checked the detector against the practice dataset's documented procedure:
+- label-blindness confirmed (labels used only for scoring;
+  `labels=None` runs the rules with zero ground truth);
+- grouping now includes the ACTOR + session + correlation id (previously
+  session+correlation only) - two actors sharing a session id can no
+  longer be conflated;
+- output now includes a RECEIPT-ORDER evidence timeline keeping BOTH raw
+  timestamps verbatim plus the offset-corrected estimate (sorting never
+  rewrites source evidence; evt-014 arrives before evt-013 and stays
+  that way);
+- `valid_until_utc` exclusivity asserted at the exact boundary;
+- delayed-delivery annotations are computed on offset-normalized times
+  (an apparent negative delivery delay is never flagged as malice) and
+  clock offsets are explained separately.
+
 ## Prioritized punch list (next session)
 
 1. **Commit everything** (red-team round 1+2, three-node work, audit
@@ -183,5 +281,10 @@ RFC 5869 HKDF on stdlib).
    organizer contract ever changes to untrusted callers - currently a
    documented trust boundary (audit row 55: FAIL by design; the networked
    nodes DO verify ML-DSA tokens).
-6. Optional hardening: journal head anchor (anti-truncation), keyed state
+6. DONE (fourth pass): device proof-of-possession at the IdP -
+   registration stores the device ML-DSA public key, `/token` requires a
+   fresh device-key signature (`proof_required` / `bad_proof` /
+   `proof_stale`); `/disable`//`/enable` routes removed (identity disable
+   is registry policy).
+7. Optional hardening: journal head anchor (anti-truncation), keyed state
    manifest, TLS on services, `pqcrypto==0.4.0` compatibility test in CI.

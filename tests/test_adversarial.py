@@ -218,14 +218,14 @@ class TestInjectionAndFuzz(AttackTest):
         self.assertEqual(entry["detail"], evil)            # one string
 
     def test_protected_read_type_confusion(self):
-        pk, sk = ml_kem_768.keygen()
+        pk, sk = crypto.kem_keypair()
         # type-confused challenge with an AUTHORIZED actor
         r = dispatch({"op": "protected_read", "actor": "victim",
                       "asset": "secret.txt",
                       "challenge": {"nested": ["obj", 1]},
                       "public_key": base64.b64encode(pk).decode()})
         self.assertEqual(r["decision"], "allow")   # coerced, no crash
-        shared = ml_kem_768.decaps(sk, base64.b64decode(r["ciphertext"]))
+        shared = crypto.kem_decaps(sk, base64.b64decode(r["ciphertext"]))
         # proof must be over the canonicalized challenge + body
         expected = hmac_mod.new(
             shared, (crypto.canonical({"nested": ["obj", 1]}) +
@@ -254,7 +254,7 @@ class TestInjectionAndFuzz(AttackTest):
             self.assertNotIn("classified", json.dumps(r), msg=str(req))
 
     def test_protected_read_huge_challenge_bounded_output(self):
-        pk, _ = ml_kem_768.keygen()
+        pk, _ = crypto.kem_keypair()
         r = dispatch({"op": "protected_read", "actor": "victim",
                       "asset": "secret.txt", "challenge": "A" * 100000,
                       "public_key": base64.b64encode(pk).decode()})

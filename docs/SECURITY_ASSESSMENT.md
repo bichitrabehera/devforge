@@ -72,8 +72,89 @@ Round-2 honesty notes (known remaining limits):
 - Registry/node traffic is plain HTTP on loopback; TLS/mTLS is a
   production requirement, out of sandbox scope.
 
+## Round 3 - trust-model hardening (second-pass audit)
+
+Scope: the embedded JSON adapter's own ops that the organizer contract
+does NOT define. The contract ops (`setup`, `read`, `revoke`, `audit`,
+`protected_read`) deliberately treat the local caller as trusted
+("actor values are trusted local inputs") - the organizer's own validator
+invokes them unauthenticated, so gating them would break the scored
+contract. The networked mode is where identity is real (ML-DSA tokens).
+
+| # | Attack (executed) | Before | Fix |
+|---|-------------------|--------|-----|
+| T1 | **Clock rewind** `advance_time seconds=-50` resurrects a dead old key into grace, and would un-enforce device revocations (now < enforce_at) | exploited | `advance_time` rejects negative and non-finite deltas (`clock_is_monotonic`); dead keys stay dead. Tests: `TestAdapterTrustModel::test_clock_cannot_rewind`, `test_rewinding_cannot_unenforce_revocation` |
+| T2 | **Forged inline approvals** stuffed into the request + claimed admin -> `report-reader` granted | exploited | Inline `approvals` payloads are no longer honored for `grant_role`/`revoke_role`: approvals must come from a trusted file inside the repo root (organizer/operator policy). No trusted path -> empty approval set -> deny. Test: `test_inline_forged_approvals_ignored` (repro 1 now deny, no Q-REPORT leak) |
+| T3 | **Pending-session hijack**: a different identity completes the half-open KEM handshake as the sender | exploited | `session_accept` is bound to the sender recorded at `session_open`; foreign sender -> `endpoint_mismatch / not_the_original_sender`. Test: `test_pending_session_cannot_be_hijacked` |
+| T4 | **Foreign resumption-token minting**: `session_close` with a spoofed peer mints THAT peer's token (mallory resumed the alex<->blair session) | exploited | `session_close` only closes for the session's original recipient; a foreign peer is refused and no token is minted. Test: `test_close_cannot_mint_foreign_resumption_token` (repro 3) |
+
+Accepted-by-design (documented trust boundary of the adapter contract):
+spoofed `actor` on `read`/`protected_read`, unauthenticated
+`revoke`/`setup`/`disable`/`rotate_key`/`re_enroll`, ghost actors, and the
+demo helper ops (`tamper_log`, `corrupt_state`, `damage_backup`). These
+are meaningful ONLY for a caller already able to run the process with our
+user permissions - the threat the adapter contract delegates to the
+networked mode (per-node ML-DSA token verification, policy polls, real
+process isolation).
+
+## Round 4 - networked-mode hardening (third-pass audit)
+
+Target: the REAL processes (IdP, registry, messaging endpoint), where
+identity was previously asserted only by caller-supplied strings.
+
+| # | Attack (executed) | Before | Fix |
+|---|-------------------|--------|-----|
+| N1 | **IdP re-registration hijack**: anyone could re-register `user-alex` with a new device, then obtain a valid token still claiming `user-alex` | exploited | `/register` is now FIRST-WRITE-WINS: an existing identity cannot be re-registered with a different device (`identity_exists`); same-device re-registration stays idempotent. Test: `test_07` step 3. REMAINING HONEST GAP: the mock IdP still issues tokens for already-registered names without device proof-of-possession - token issuance to a registered name stands in for a real device-key challenge/response and is on the punch list. |
+| N2 | **Unauthenticated registry control plane**: `POST /revoke` (and `/re_enroll`) succeeded with no token; anyone could revoke or restore any identity | exploited | `/revoke` and `/re_enroll` are now SELF-SERVICE AUTHENTICATED: the caller must present a valid, unexpired IdP ML-DSA token whose subject equals the actor (verified against the IdP's JWKS, fetched and cached). Alex's token cannot revoke blair (`not_permitted`); no token → `unauthorized`. The registry takes `--idp`; without it the routes fail closed (`idp_unconfigured`). Tests: `test_07` steps 1-2; `test_03` now runs the real authenticated flow. |
+| N3 | **Messaging sender spoofing**: the endpoint accepted a caller-supplied sender at offer/establish and delivered envelopes under any claimed sender | exploited | `/session/offer` and `/session/establish` require a valid IdP token; the session binds to the token's SUBJECT. Establish with a different subject → `sender_mismatch`; envelopes whose sender differs from the session's authenticated sender → `reject sender_mismatch`. Tests: `test_07` steps 4-6; `test_05` runs the authenticated flow. |
+
+Also verified held from round 2: detector adapter JSON, msg_id binding,
+resumption ratchet, approvals path allowlist, cross-process revoke
+persistence.
+
+## Round 5 - IdP proof-of-possession (fourth-pass audit)
+
+The mock IdP's core gap: token issuance for registered names with no
+device credential, plus unauthenticated /disable and /enable.
+
+| # | Probe (executed) | Before | Fix |
+|---|------------------|--------|-----|
+| I1 | Anyone reaching the IdP obtains a valid token for a REGISTERED identity | exploited | Device proof-of-possession: registration now stores the device's ML-DSA PUBLIC KEY; `/token` requires a fresh signature over canonical({identity, device, ts}) with that key (60 s replay window: stale -> `proof_stale`, wrong key -> `bad_proof`, missing -> `proof_required`). Verified: probe 1 -> `proof_required`. Tests: `test_07` step 3b. |
+| I2 | `/disable` and `/enable` callable without credentials (token issuance could be toggled) | exploited | Routes REMOVED: identity disabling is a registry-policy concern (nodes enforce the policy `disabled` list); the IdP no longer exposes it. Verified: probe 2 -> 404. |
+| I3 | First-claim registration lets a caller claim any unregistered name | by design, now documented | Registration requires a device ML-DSA public key; claiming a fresh name means registering YOUR OWN device key (standard open bootstrap). The operator pre-registers all legitimate identities at startup, and first-write-wins blocks later takeover of a claimed name. A closed-registration mode is future work. |
+
+Also added: `tokens.device_proof()` / `verify_device_proof()` (src/tokens.py);
+the demo and networked tests now run the full PoP flow end-to-end
+(register with device key -> PoP token -> authenticated registry +
+messaging operations).
+
+## Round 6 - proof replay + token lifetime (fifth-pass audit)
+
+| # | Finding (verified) | Fix |
+|---|--------------------|-----|
+| R1 | A valid device proof could be REPLAYED within its 60 s freshness window; each replay minted a fresh token | Device proofs are now SINGLE-USE: the IdP keeps a consumed-proof ledger (entries expire with the window); a replayed proof is refused with `proof_replayed` - each proof grants exactly one token. The ledger digest now covers only the SIGNED fields plus the signature, so changing unsigned fields cannot bypass it. Test: `test_07` steps 3c and 3c-2. |
+| R2 | `ttl_s` was not part of the signed proof and was passed to issuance UNCAPPED: a replayed proof could mint a 24-hour token | `ttl_s` is now treated as attacker-controlled input and CAPPED server-side at `MAX_TOKEN_TTL_S = 3600` (floor 1 s, non-numeric/non-finite -> default 60). Verified: a `ttl_s=86400` request returns a token whose payload `exp - iat <= 3601`. Combined with signed-field replay tracking, no replay path yields a long-lived token. Test: `test_07` step 3d. |
+
+Note: the TTL cap applies to every issued token including the demo's
+(900 s) - within the cap. The consumed-proof ledger lives in the IdP's
+RAM; a process restart clears it, but proofs also expire after 60 s, so
+the replayable window after a restart is bounded by the freshness window
+(documented).
+
+## Round 7 - unsigned-field replay + future iat (sixth-pass audit)
+
+| # | Finding (reproduced) | Fix |
+|---|----------------------|-----|
+| S1 | The consumed-proof digest covered the FULL request body. Replaying a used proof with `ttl_s: 120` and `clock_skew: 86400` changed the digest and minted a second token | `tokens.device_proof_core()` exposes the exact signed fields (`identity`, `device`, `ts`); `_consume_proof()` hashes those fields plus `proof`. The tweaked replay now returns `proof_replayed`. Test: `test_07` step 3c-2. |
+| S2 | `clock_skew` was passed to `tokens.issue()`, putting `iat` 86,400 s in the future; `tokens.verify()` checked only `exp` | The IdP ignores client `clock_skew` entirely; `iat`/`exp` use the service's real clock. `tokens.verify()` rejects `iat > now + 60 s` with `token_not_yet_valid` for every verifier. Tests: `test_07` step 3e (IdP token has `iat ~= now`; future-dated token denied by node-a). |
+
+Residual limitation: the consumed-proof ledger is still in RAM. A production
+IdP should persist consumed-proof digests; here the residual replay window
+after a restart is bounded by the 60 s proof freshness window.
+
 ## Verification
 
-`python3 -m unittest discover -s tests` - **61 tests, all passing**
-(23 objective + 6 networked + 10 contract + 22 adversarial), plus the
-45-step demo `all_ok=True`.
+`python3 -m unittest discover -s tests` - **108 tests, all passing**,
+plus `python3 demo_networked.py` with **69/69 checks** and
+`all_checks_pass = true`. See `docs/full_test_suite_after.txt` and
+`docs/demo_networked_output.json`.

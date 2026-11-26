@@ -59,10 +59,17 @@ def checklist_table():
         [P("5. Log integrity", CELL),
          P("Every entry hash-chained and ML-DSA-signed; user text only in a "
            "single JSON field (injection-proof); verify_log reports first "
-           "bad entry and reason.", CELL)],
+           "bad entry and reason. A STANDALONE verifier (imports nothing "
+           "from the service) re-checks audit/journal/state/backup "
+           "independently: exit 0 verified+complete, 2 verified-but-"
+           "incomplete, 1 failed.", CELL)],
         [P("6. Routine vs suspicious", CELL),
-         P("Explainable rules over labelled logs: F1 = 1.0, median "
-           "time-to-alert 1.2 s, 0 false alerts per 1,000 benign events.", CELL)],
+         P("Explainable rules over labelled logs. Practice set (22 events): "
+           "F1 = 1.0, median time-to-alert 1.2 s, 0 false alerts per 1,000. "
+           "Held-out set (12,000 events, independent seeded generator, rules "
+           "tuned on practice only): F1 0.748, precision 0.999, 0.1 false "
+           "alerts per 1,000; per-class results and error analysis in "
+           "docs/DETECTOR_METRICS.md.", CELL)],
         [P("7. Lateral movement", CELL),
          P("Bursts of >=2 unknown service edges flagged even with valid "
            "credentials; each alert names identity, services, events, "
@@ -72,8 +79,10 @@ def checklist_table():
            "inversions within 10 s annotated; beyond that flagged "
            "order_uncertain.", CELL)],
         [P("9. Replay + recipient binding", CELL),
-         P("AES-GCM AAD binds (session, sender, recipient, counter); "
-           "duplicates and modified bindings rejected.", CELL)],
+         P("AES-GCM AAD binds (session, sender, recipient, counter) plus an "
+           "HMAC key-commitment tag (GCM is not key-committing); duplicates, "
+           "renamed metadata, wrong recipients and modified bindings "
+           "rejected.", CELL)],
         [P("10. Forward secrecy", CELL),
          P("Session key from a fresh ephemeral ML-KEM keypair, zeroized at "
            "accept; session key zeroized at close; later long-term-key "
@@ -104,8 +113,10 @@ story = [
     P("All cryptography from vetted libraries only: ML-KEM-768 (FIPS 203), "
       "ML-DSA-65 (FIPS 204) via <b>pqcrypto</b>; HKDF-SHA256 and AES-256-GCM "
       "via <b>cryptography</b>. No custom primitives, no AI/ML, no "
-      "hard-coded secrets. Verified by 23 objective tests plus the "
-      "organizer's lost-device validator (all checks PASS)."),
+      "hard-coded secrets. Verified by 141 tests (objectives, adversarial, "
+      "real-socket networked, crypto known-answer/cross-implementation, "
+      "standalone verifier, black-box red team) plus the organizer's "
+      "lost-device validator (all checks PASS)."),
     Spacer(1, 2 * mm),
     P("USP: Recovery-first key lifecycle with evidence you can check", H2),
     P("Every disruptive event &mdash; rotation, revocation, crash, damaged "
@@ -173,10 +184,14 @@ story = [
       "of scope; no attacks against other teams or shared services."),
     P("Verification &amp; reproduction", H2),
     P("pip install -r requirements.txt (no venv needed - stdlib plus two "
-      "packages); python3 -m unittest discover -s tests (83 tests); "
-      "python3 demo.py (embedded walkthrough); python3 demo_networked.py "
-      "(real 6-process deployment: registry, IdP, three nodes, messaging "
-      "endpoint).", sm),
+      "packages; the adapter runs on BOTH pqcrypto 0.4.x and 1.x APIs); "
+      "python3 -m unittest discover -s tests (141 tests); python3 demo.py "
+      "(embedded walkthrough); python3 demo_networked.py (real 6-process "
+      "deployment); python3 tools/selfattack.py (black-box red team, 15 "
+      "items / 76 checks, all PASS); python3 scripts/check_all.py (layout, "
+      "AST static scan, secret scan incl. full git history, validator, "
+      "tests); python3 verifier/track4_verify.py audit|journal|state|backup "
+      "(independent evidence verification).", sm),
     Spacer(1, 2 * mm),
     P("<b>5-minute demo video:</b> %s" % VIDEO),
     P("Repository: created during the hackathon; full source under src/ with "
