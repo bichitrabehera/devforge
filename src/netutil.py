@@ -48,7 +48,7 @@ def wait_healthy(url, timeout=10.0):
     return False
 
 
-def serve(routes, port, state=None):
+def serve(routes, port, state=None, lock=None):
     """Start a threaded JSON/HTTP server on 127.0.0.1:port (real sockets).
 
     routes: {(method, path): handler(dict) -> dict}
@@ -70,11 +70,24 @@ def serve(routes, port, state=None):
             path = self.path.split("?")[0]
             fn = routes.get((self.command, path))
             if fn is None:
+                import os as _os
+                if _os.environ.get("TRACK4_DEBUG"):
+                    self._respond(404, {"status": "error",
+                                        "message": "not_found",
+                                        "path": path,
+                                        "command": self.command,
+                                        "known": sorted(routes)})
+                    return
                 return self._respond(404, {"status": "error",
                                            "message": "not_found",
                                            "path": path})
             try:
-                resp = fn(body, state) if state is not None else fn(body)
+                if lock is not None:
+                    with lock:
+                        resp = fn(body, state) if state is not None \
+                            else fn(body)
+                else:
+                    resp = fn(body, state) if state is not None else fn(body)
             except Exception as exc:    # diagnostics to stderr only
                 import sys as _sys
                 import traceback as _tb

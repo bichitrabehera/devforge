@@ -1,0 +1,42 @@
+idp listening on 127.0.0.1:39377
+registry listening on 127.0.0.1:58611
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+node node-a listening on 127.0.0.1:51069 (poll 0.50s)
+node node-b listening on 127.0.0.1:56501 (poll 2.00s)
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+node node-c listening on 127.0.0.1:51711 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:38181
+idp listening on 127.0.0.1:50761
+registry listening on 127.0.0.1:56543
+node node-c listening on 127.0.0.1:37017 (poll 4.00s)
+node node-a listening on 127.0.0.1:50019 (poll 0.50s)
+node node-b listening on 127.0.0.1:34757 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:58159
+idp listening on 127.0.0.1:57471
+registry listening on 127.0.0.1:39029
+node node-a listening on 127.0.0.1:36987 (poll 0.50s)
+node node-b listening on 127.0.0.1:49431 (poll 2.00s)
+node node-c listening on 127.0.0.1:58325 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:44709
+registry listening on 127.0.0.1:47163
+idp listening on 127.0.0.1:57783
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+node node-c listening on 127.0.0.1:55307 (poll 4.00s)
+routes: [('GET', '/health'), ('GET', '/log'), ('GET', '/status'), ('GET', '/verify_log'), ('POST', '/audit'), ('POST', '/authenticate'), ('POST', '/read'), ('POST', '/tamper_log')]
+node node-a listening on 127.0.0.1:56047 (poll 0.50s)
+node node-b listening on 127.0.0.1:45617 (poll 2.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:33871
+idp listening on 127.0.0.1:43133
+registry listening on 127.0.0.1:44971
+node node-a listening on 127.0.0.1:44541 (poll 0.50s)
+node node-b listening on 127.0.0.1:54967 (poll 2.00s)
+node node-c listening on 127.0.0.1:35839 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:41923
+registry listening on 127.0.0.1:58623
+idp listening on 127.0.0.1:50051
+node node-a listening on 127.0.0.1:43889 (poll 0.50s)
+node node-b listening on 127.0.0.1:46399 (poll 2.00s)
+node node-c listening on 127.0.0.1:51549 (poll 4.00s)
+endpoint recv (user-blair) listening on 127.0.0.1:56709

@@ -35,7 +35,7 @@ sys.path.insert(0, ROOT)
 
 from src import crypto, netutil, tokens  # noqa: E402
 
-POLL_A, POLL_B = 0.5, 2.0
+POLL_A, POLL_B, POLL_C = 0.5, 2.0, 4.0
 GRACE = 6.0          # real seconds
 
 
@@ -47,18 +47,28 @@ def wait_port_proc(proc, url, name):
 
 def start(cmd, env):
     e = dict(os.environ, **env)
+    errfile = open(os.path.join(env_dir_hint(e), "stderr.log"), "ab")
     return subprocess.Popen([sys.executable] + cmd, cwd=ROOT, env=e,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
+                            stdout=errfile,
+                            stderr=errfile)
+
+
+def env_dir_hint(e):
+    for k, v in e.items():
+        if k.startswith("TRACK4_") and os.path.isdir(v):
+            return v
+    return "."
 
 
 def main():
-    work = tempfile.mkdtemp(prefix="track4net_")
+    scratch = os.path.join(ROOT, ".redteam")
+    os.makedirs(scratch, exist_ok=True)
+    work = tempfile.mkdtemp(prefix="track4net_", dir=scratch)
     ports = {k: netutil.free_port() for k in
-             ("registry", "idp", "node-a", "node-b", "recv")}
+             ("registry", "idp", "node-a", "node-b", "node-c", "recv")}
     base = {k: "http://127.0.0.1:%d" % v for k, v in ports.items()}
     procs = []
-    report = {"processes": 5, "measurements": {}, "checks": {}}
+    report = {"processes": 6, "measurements": {}, "checks": {}}
 
     def env_for(*dirs):
         e = {}
@@ -70,6 +80,7 @@ def main():
     idp_env = env_for("TRACK4_IDP_DIR")
     node_a_env = env_for("TRACK4_NODE_NODE_A_DIR")
     node_b_env = env_for("TRACK4_NODE_NODE_B_DIR")
+    node_c_env = env_for("TRACK4_NODE_NODE_C_DIR")
     recv_env = env_for("TRACK4_MESSENGER_RECV_DIR")
 
     procs.append(start(["services/registry_server.py",
@@ -87,22 +98,31 @@ def main():
                         "--port", str(ports["node-b"]),
                         "--registry", base["registry"], "--idp", base["idp"],
                         "--poll-interval", str(POLL_B)], node_b_env))
+    procs.append(start(["services/node_server.py", "--name", "node-c",
+                        "--port", str(ports["node-c"]),
+                        "--registry", base["registry"], "--idp", base["idp"],
+                        "--poll-interval", str(POLL_C)], node_c_env))
     wait_port_proc(procs[2], base["node-a"], "node-a")
     wait_port_proc(procs[3], base["node-b"], "node-b")
+    wait_port_proc(procs[4], base["node-c"], "node-c")
 
     procs.append(start(["services/messenger_server.py", "--name", "recv",
                         "--port", str(ports["recv"]),
                         "--identity", "user-blair",
                         "--peer", "user-alex"], recv_env))
-    wait_port_proc(procs[4], base["recv"], "recv")
+    wait_port_proc(procs[5], base["recv"], "recv")
 
     def R(op, **kw):
         return netutil.request(base["registry"] + op, kw or None,
-                               method="POST")[1]
+                               method="POST" if kw else "GET")[1]
 
     def NODE(node, op, **kw):
-        return netutil.request(base[node] + op, kw or None,
-                               method="POST" if kw is not None else "GET")[1]
+        url = base[node] + op
+        code, r = netutil.request(url, kw or None,
+                                  method="POST" if kw else "GET")
+        if "DEBUG" in os.environ and code != 200:
+            print("DEBUG %s %s -> %s %s" % (node, op, code, r), file=sys.stderr)
+        return r
 
     try:
         # setup + identities (IdP registration, real tokens)
@@ -121,7 +141,7 @@ def main():
             base["idp"] + "/token", {"identity": "user-blair"}, method="POST")
         tok_alex = tok_alex["token"]
         tok_blair = tok_blair["token"]
-        time.sleep(max(POLL_A, POLL_B) + 0.3)     # nodes pick up policy
+        time.sleep(max(POLL_A, POLL_B, POLL_C) + 0.3)  # nodes pick up policy
 
         # 1. real reads through real nodes
         r = NODE("node-a", "/read", token=tok_alex, asset="report.txt")
@@ -145,30 +165,32 @@ def main():
         r = NODE("node-b", "/authenticate", token=tok_alex,
                  key_version=v_new)
         report["checks"]["new_key_every_node"] = r["decision"] == "allow"
+        r = NODE("node-c", "/authenticate", token=tok_alex,
+                 key_version=v_new)
+        report["checks"]["new_key_node_c"] = r["decision"] == "allow"
 
-        # 3. revocation with REAL propagation measurement
+        # 3. revocation with REAL propagation measurement per node.
+        # A deny must carry reason "revoked" - a routine not-owner denial
+        # would pass trivially (same discipline as tests/test_networked).
         r = R("/revoke", actor="user-blair", device="device-blair")
-        t_revoke = r["revoked_at"]
-        r = NODE("node-a", "/read", token=tok_blair, asset="report.txt")
-        report["checks"]["revoked_node_a"] = r["decision"] == "deny"
-        # node-b has a 2s poll: measure when it actually enforces
-        r = NODE("node-b", "/read", token=tok_blair, asset="report.txt")
-        if r["decision"] == "allow":               # not yet propagated: real!
-            deadline = time.time() + POLL_B + 2.0
+        t_revoke = time.time()
+        for name, deadline_s in (("node-a", 3.0), ("node-b", POLL_B + 3.0),
+                                 ("node-c", POLL_C + 3.0)):
+            deadline = time.time() + deadline_s
             while time.time() < deadline:
-                r = NODE("node-b", "/read", token=tok_blair,
-                         asset="report.txt")
-                if r["decision"] == "deny":
+                r = NODE(name, "/read", token=tok_blair, asset="report.txt")
+                if r["decision"] == "deny" and r.get("reason") == "revoked":
                     break
-                time.sleep(0.2)
-        t_enforced_b = time.time()
-        report["measurements"]["revocation_propagation_node_b_s"] = \
-            round(t_enforced_b - t_revoke, 3)
-        report["checks"]["revoked_node_b"] = r["decision"] == "deny"
-        _, code, = netutil.request(base["node-b"] + "/status", None)[0:2]
-        _, status_b = netutil.request(base["node-b"] + "/status", None)
-        report["measurements"]["node_b_reported_propagation_s"] = \
-            (status_b.get("enforcement_log") or [{}])[-1].get("propagation_s")
+                time.sleep(0.1)
+            enforced = time.time()
+            report["checks"]["revoked_" + name] = \
+                r["decision"] == "deny" and r.get("reason") == "revoked"
+            report["measurements"]["revocation_propagation_%s_s" % name] = \
+                round(enforced - t_revoke, 3)
+            _, status = netutil.request(base[name] + "/status", None)
+            report["measurements"]["%s_reported_propagation_s" % name] = \
+                (status.get("enforcement_log") or [{}])[-1].get(
+                    "propagation_s")
 
         # 4. other users unaffected; owner re-enrols (real IdP + registry)
         r = NODE("node-a", "/read", token=tok_alex, asset="report.txt")
@@ -189,6 +211,9 @@ def main():
                           "--port", str(ports["registry"])], reg_env)
         wait_port_proc(procs[0], base["registry"], "registry")
         r = R("/keys/current")
+        if os.environ.get("TRACK4_DEBUG"):
+            print("DEBUG keys/current:", json.dumps(r), "v_new:", v_new,
+                  file=sys.stderr)
         report["checks"]["registry_recovered_after_kill"] = \
             r["status"] == "ok" and r["version"] >= v_new
         # revoked state survived the kill: policy still carries it
@@ -256,10 +281,13 @@ def main():
                                        envs[0], method="POST")[1])
         report["checks"]["reorder_buffered"] = \
             results[0]["decision"] in ("buffered", "deliver")
+        if os.environ.get("TRACK4_DEBUG"):
+            print("DEBUG gap results:", json.dumps(results[-1]),
+                  file=sys.stderr)
         report["checks"]["gap_filled_delivered_in_order"] = \
             results[-1]["decision"] == "deliver" and \
             [m["plaintext"] for m in results[-1]["messages"]] == \
-            ["msg one", "msg two"]
+            ["msg one", "msg two", "msg three"]
         # duplicate over the real socket -> rejected
         r = netutil.request(base["recv"] + "/message/receive", envs[0],
                             method="POST")[1]
@@ -289,7 +317,7 @@ def main():
         sys.path.insert(0, ROOT)
         from src.detector import evaluate_live
         node_logs = []
-        for n in ("node-a", "node-b"):
+        for n in ("node-a", "node-b", "node-c"):
             _, l = netutil.request(base[n] + "/log")
             node_logs.extend(l["log"])
         r = evaluate_live(node_logs)
@@ -301,7 +329,10 @@ def main():
         for p in procs:
             if p.poll() is None:
                 p.kill()
-        shutil.rmtree(work, ignore_errors=True)
+        if report.get("all_checks_pass"):
+            shutil.rmtree(work, ignore_errors=True)
+        else:
+            print("work dir kept for diagnosis: %s" % work, file=sys.stderr)
 
     print(json.dumps(report, indent=2))
     return 0 if report.get("all_checks_pass") else 1

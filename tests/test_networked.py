@@ -1,6 +1,6 @@
 """Integration tests over REAL localhost sockets.
 
-Each service (registry, IdP, two nodes, messaging endpoint) runs as an
+Each service (registry, IdP, three nodes, messaging endpoint) runs as an
 in-process threaded server here (the same code paths as the subprocess
 deployment in demo_networked.py, which spawns them as separate OS
 processes). Timing assertions use the REAL clock and real poll intervals.
@@ -24,7 +24,7 @@ class NetworkedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         dirs = {k: tempfile.mkdtemp(prefix="t4net_%s_" % k)
-                for k in ("reg", "idp", "na", "nb", "recv")}
+                for k in ("reg", "idp", "na", "nb", "nc", "recv")}
         os.environ["TRACK4_REGISTRY_DIR"] = dirs["reg"]
         os.environ["TRACK4_IDP_DIR"] = dirs["idp"]
         cls.dirs = dirs
@@ -34,7 +34,7 @@ class NetworkedTest(unittest.TestCase):
         import services.messenger_server as msgr
         cls.reg, cls.idp, cls.node = reg, idp, node
         ports = {k: netutil.free_port()
-                 for k in ("reg", "idp", "na", "nb", "recv")}
+                 for k in ("reg", "idp", "na", "nb", "nc", "recv")}
         cls.base = {k: "http://127.0.0.1:%d" % v for k, v in ports.items()}
         cls.reg_state = reg._load_or_recover()
         netutil.serve(reg.ROUTES, ports["reg"], state=cls.reg_state)
@@ -43,9 +43,12 @@ class NetworkedTest(unittest.TestCase):
                            cls.base["idp"], 0.3, dirs["na"])
         cls.nb = node.Node("node-b", ports["nb"], cls.base["reg"],
                            cls.base["idp"], 1.0, dirs["nb"])
+        cls.nc = node.Node("node-c", ports["nc"], cls.base["reg"],
+                           cls.base["idp"], 1.5, dirs["nc"])
         netutil.serve(node.build_routes(cls.na), ports["na"])
         netutil.serve(node.build_routes(cls.nb), ports["nb"])
-        for n in (cls.na, cls.nb):
+        netutil.serve(node.build_routes(cls.nc), ports["nc"])
+        for n in (cls.na, cls.nb, cls.nc):
             threading.Thread(target=n.poll_loop, daemon=True).start()
         cls.recv = msgr.Endpoint("recv", ports["recv"], "user-blair",
                                  "user-alex")
@@ -108,6 +111,11 @@ class NetworkedTest(unittest.TestCase):
               {"token": self.tok, "key_version": v_old}, "POST")
         self.assertEqual(r["decision"], "deny")
         self.assertEqual(r["reason"], "old_key_after_cutoff")
+        # node-c (slowest poll) applies the new version by its own poll
+        v_new = R(self.base["reg"] + "/keys/current")["version"]
+        r = R(self.base["nc"] + "/authenticate",
+              {"token": self.tok, "key_version": v_new}, "POST")
+        self.assertEqual(r["decision"], "allow")
 
     def test_03_revocation_real_propagation(self):
         R = self.REQ
@@ -130,11 +138,23 @@ class NetworkedTest(unittest.TestCase):
         r = R(self.base["na"] + "/read",
               {"token": self.tok, "asset": "report.txt"}, "POST")
         self.assertEqual(r["decision"], "allow")  # others unaffected
-        # measured, real propagation recorded by the node
+        # node-c is the slowest poller: it must ALSO enforce (real poll)
+        deadline = time.time() + 4.0
+        while time.time() < deadline:
+            rc = R(self.base["nc"] + "/read",
+                   {"token": self.tokb, "asset": "report.txt"}, "POST")
+            if rc["decision"] == "deny" and rc.get("reason") == "revoked":
+                break
+            time.sleep(0.1)
+        self.assertEqual(rc["decision"], "deny")
+        self.assertEqual(rc["reason"], "revoked")
+        # measured, real propagation recorded by each node
         status = R(self.base["na"] + "/status")
         self.assertTrue(status["enforcement_log"])
         self.assertGreaterEqual(
             status["enforcement_log"][-1]["propagation_s"], 0.0)
+        status_c = R(self.base["nc"] + "/status")
+        self.assertTrue(status_c["enforcement_log"])
 
     def test_04_backup_and_log_integrity(self):
         R = self.REQ

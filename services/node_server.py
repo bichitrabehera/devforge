@@ -246,16 +246,25 @@ class Node:
 
 
 def build_routes(node):
+    import threading
+    lock = threading.RLock()   # serialize state mutations per node
+
+    def locked(fn):
+        def wrapper(body):
+            with lock:
+                return fn(body)
+        return wrapper
+
     return {
         ("GET", "/health"): lambda body: {"status": "ok", "node": node.name},
         ("GET", "/status"): node.status,
-        ("POST", "/read"): node.read,
-        ("POST", "/authenticate"): node.authenticate,
-        ("POST", "/audit"): node.audit_op,
-        ("GET", "/verify_log"): node.verify_log,
-        ("POST", "/tamper_log"): node.tamper,
-        ("GET", "/log"): lambda body: {"status": "ok",
-                                       "log": node.log_state["log"]},
+        ("POST", "/read"): locked(node.read),
+        ("POST", "/authenticate"): locked(node.authenticate),
+        ("POST", "/audit"): locked(node.audit_op),
+        ("GET", "/verify_log"): locked(node.verify_log),
+        ("POST", "/tamper_log"): locked(node.tamper),
+        ("GET", "/log"): locked(lambda body: {"status": "ok",
+                                              "log": node.log_state["log"]}),
     }
 
 
@@ -273,7 +282,10 @@ def main():
         "/tmp/track4_node_%s" % args.name)
     node = Node(args.name, args.port, args.registry, args.idp,
                 args.poll_interval, state_dir)
-    netutil.serve(build_routes(node), args.port)
+    routes = build_routes(node)
+    if os.environ.get("TRACK4_DEBUG"):
+        print("routes:", sorted((m, p) for (m, p) in routes), flush=True)
+    netutil.serve(routes, args.port)
     threading.Thread(target=node.poll_loop, daemon=True).start()
     print("node %s listening on 127.0.0.1:%d (poll %.2fs)"
           % (args.name, args.port, args.poll_interval), flush=True)

@@ -1,76 +1,44 @@
-# Evidence Sheet — Track 4 "Trust, but verify"
+# Trust, but verify: repository evidence sheet
 
-Mirrors the organizer template (`Track-4-Toolkit/templates/evidence-sheet.md`):
-one row per goal, the behavior demonstrated, and where it is verified.
-All metrics measured with real processes/sockets where noted; nothing here is
-estimated. State is isolated per run; no synthetic values are reused.
+Team: [TODO] | Commit: [pending - see git log] | Run: demo_networked + unittest suite | Date/time: [UTC of last run]
 
-## Adapter contract v1 (five ops) — demonstrated behavior
+Environment: Linux (Ubuntu), Python 3.12, `pqcrypto` (ML-KEM-768 / ML-DSA-65), AES-GCM via `cryptography` (messaging only), 3 enforcement nodes + registry + IdP + messaging endpoint as separate OS processes on 127.0.0.1, laptop-class hardware.
 
-| Op | Demonstrated behavior | Verified by | Result |
-|---|---|---|---|
-| setup | resets state; honors `disabled`; `key_material` stored as SHA-256 digest only, never disclosed (validator marker check passes) | `tests/test_contract.py::TestSetupReset`; organizer validator | PASS |
-| read | allow with exact stored body / deny with no content; decision recorded against request_id | organizer validator (all 23 checks) | PASS |
-| revoke | actor-based, persists across processes, others unaffected | organizer validator | PASS |
-| audit | returns the RECORDED decision for the request_id, surviving later policy changes | `TestRecordedAudit` | PASS |
-| protected_read | KEM interop: encapsulate against caller's Base64 raw ML-KEM-768 key; ciphertext (Base64) + lowercase-hex HMAC-SHA256(shared secret, challenge + body); verified by decapsulating client-side; secret never leaves the app | `TestProtectedRead`, `TestAdapterEndToEnd` (subprocess) | PASS |
+One row per published goal. Observed results come from runnable artifacts in this repository; every row links the exact test or demo that reproduces it. Statuses are `measured` only where a run actually produced the numbers below.
 
-Container hardening: the five contract ops need only stdlib + pqcrypto
-(HKDF is the RFC 5869 standard construction, test-verified identical to
-`cryptography`'s implementation); AES-GCM is lazy-imported for messaging
-ops only; stdin is read through EOF; state persists across the one-
-process-per-request model.
-
-## Twelve security goals — demonstrated behavior
-
-| # | Goal | Demonstrated behavior | Verified by | Result |
-|---|------|----------------------|-------------|--------|
-| 1 | Key rotation | Authorized transfers continue during rotation; old key accepted until a **documented cutoff (grace 30 s simulated in embedded mode; real seconds in networked mode)**; after cutoff every node rejects `old_key_after_cutoff` | `tests/test_objectives.py::TestRotationCutoff`; networked: `tests/test_networked.py::test_02` | PASS |
-| 2 | Revocation across nodes | Node-a and node-b enforce at their own real poll intervals (0.5 s / 2.0 s); enforcement time measured and reported per node (~0.05 s / within one poll); owner re-enrols with fresh keys; other users retain access | `TestRevocationAcrossNodes`; networked `test_03`; organizer lost-device validator: all checks PASS | PASS |
-| 3 | Crash recovery | Rotation journaled before commit; journal replay to last commit marker; uncommitted rotations discarded; revocations persist; protected data available; registry `kill -9` recovers consistently | `TestCrashRecovery` | PASS |
-| 4 | Backup integrity | ML-DSA-signed manifest over SHA-256 payload, stored outside live state; signature+hash verified before load; damaged backup reported (`backup_integrity_failure`), never used | `TestBackupIntegrity`; networked `test_04` | PASS |
-| 5 | Log integrity | Structured, hash-chained, ML-DSA-signed entries; injection text cannot forge a second event or change the actor (injection probe tested); `verify_log` reports first bad entry + reason | `TestLogIntegrity` | PASS |
-| 6 | Routine vs suspicious | Context-driven rules (approvals validity window, role scopes); metrics on the organizer's 22-event labelled log: **F1 = 1.0, median time-to-alert = 1.2 s, 0 false alerts per 1,000 benign events** | `TestDetectorLabelled::test_metrics_on_labelled_log` | PASS |
-| 7 | Lateral movement | Burst of >= 2 unexpected service edges flagged even when denied/valid-credentials; each alert names identity, services, events, rule and path; reported as CANDIDATE (does not imply successful compromise); isolated denial not flagged | `TestDetectorLabelled::test_alerts_are_explainable` | PASS |
-| 8 | Clock differences | Source offsets up to ±60 s normalized to true time (documented supported range); arrival inversions within a 10 s tolerance annotated `delayed_delivery`; beyond that flagged `order_uncertain`; receipt order and event order kept separately | `TestDetectorLabelled::test_clock_differences_and_out_of_order`, `test_offset_beyond_range_flagged_uncertain` | PASS |
-| 9 | Replay + recipient binding | AES-GCM AAD binds (session, sender, recipient, counter); duplicate msg_id → `duplicate_replay`; tampered counter/ciphertext → `authentication_failed`; wrong recipient → `recipient_binding_mismatch` | `TestMessaging::test_replay_and_recipient_binding`; networked `test_05` | PASS |
-| 10 | Forward secrecy | Per-session ephemeral ML-KEM-768 keypair; ephemeral secret zeroized at accept (verified absent from state); session key zeroized at close; later long-term-key exposure cannot reveal completed sessions | `TestMessaging::test_forward_secrecy`; networked endpoint reports keys in RAM only | PASS |
-| 11 | Delivery under loss/reordering | Gaps within documented window (8) buffered; in-order delivery when hole fills; stale counters rejected; gaps beyond window reported as failures (`gap_too_large`) | `TestMessaging::test_delivery_under_loss_and_reordering`; networked `test_05` | PASS |
-| 12 | Session resumption | Resumption requires `HMAC(resumption_secret, peer)`; key ratchets and secret rotates per resume; same sid + different identity rejected (`peer_not_bound_to_session`) | `TestMessaging::test_session_resumption_peer_binding` | PASS |
-
-## Beyond the adapter interface (adapter contract v1)
-
-The five adapter ops (`setup`, `read`, `revoke`, `audit`, `protected_read`)
-are exercised by the organizer's lost-device validator (all checks PASS).
-End-to-end messaging, replay protection, forward secrecy, key lifecycle,
-recovery, backups, and detection each require separate evidence — provided
-above via the objective and networked test suites and `demo.py` /
-`demo_networked.py`.
+| Goal | Public demonstration and evidence to collect | Expected behavior you define before run | Actual result / status / evidence link |
+| --- | --- | --- | --- |
+| 1. Key rotation | `demo.py` steps `rotate`/`transfer-old-in-grace`/`old-after-cutoff`; networked `tests/test_networked.py::test_02` (real clock, grace 2.0 s) | New ML-KEM-768 version per rotation; old version accepted only until `cutoff_at = created_at + grace` (documented 30 s embedded / real seconds networked); new version works everywhere | **measured** — in-grace `allow` (outcome `grace`), post-cutoff `deny old_key_after_cutoff` on node-a and node-c; new key accepted on all three nodes (`new_key_node_c`). Evidence: `tests/test_objectives.py::TestRotationCutoff`, `tests/test_networked.py::test_02`, `demo.py` (48 steps, `all_ok=true`) |
+| 2. Revocation across nodes | `demo_networked.py` section 3: revoke, then poll each real node until `reason == "revoked"` | Every node rejects a revoked key at `revoked_at + node.poll`; time from revocation to LAST node enforcement reported; owner re-enrols; others unaffected | **measured** — node-a 0.259 s, node-b 1.641 s, node-c (last) 3.661 s on the real clock; nodes self-report 0.163/1.605/3.600 s in `/status` `enforcement_log`; re-enroll restores owner; other users unaffected. Evidence: `tests/test_objectives.py::TestRevocationAcrossNodes` (asserts `last_node == node-c`, 4.0 s), `tests/test_networked.py::test_03`, organizer validator 23/23 PASS |
+| 3. Crash recovery | `demo_networked.py` section 5: `SIGKILL` the registry, restart, read `/keys/current` and `/policy`; embedded `recover_state` after simulated crash | Durable signed journal survives; last committed key version preserved; revocations stay revoked; protected data available | **measured** — `registry_recovered_after_kill=true` (version >= committed), revocation history replayed from journal; `recover_state` reports committed version, `still_revoked`, `journal_records_rejected` for forged records. Evidence: `tests/test_objectives.py::TestCrashRecovery`, `demo.py` steps `begin-rotation`/`crash`/`recover` |
+| 4. Backup integrity | `demo_networked.py` section 6: backup, damage one payload byte, restore; then a good backup restores | Damaged backup refused with `backup_integrity_failure`, no state change; forged identity refused with `backup_identity_mismatch`; only verified material loads | **measured** — `damaged_backup_rejected=true`, `good_backup_restored=true`. Evidence: `tests/test_objectives.py::TestBackupIntegrity`, `tests/test_adversarial.py::TestBackupSwap` (fully forged blob rejected) |
+| 5. Log integrity | `demo.py` steps `verify-clean`/`tamper`/`verify-tampered`; node `/tamper_log` + `/verify_log` over a real socket | Hash-chained, ML-DSA-signed entries; user text confined to one JSON field (no forged second events, actor unchanged); operator-verifiable with first-bad-seq report | **measured** — tamper detected at `first_bad_seq`, chain+signature verification returns `valid=false`. Limits: detection covers any modification of recorded entries; the state integrity manifest is unkeyed (blind tamper detection) — see `docs/SECURITY_ASSESSMENT.md`. Evidence: `tests/test_objectives.py::TestLogIntegrity`, `tests/test_networked.py::test_04` |
+| 6. Routine and suspicious activity | `detector.py --events practice/events.csv --labels practice/labels.csv` (label-blind rules; labels only for scoring) | Approved admin changes in approval windows pass; unapproved role changes and suspicious reads alert | **measured (practice set only)** — F1 = 1.0, median time-to-alert = 1.2 s, 0.0 false alerts per 1,000 benign events on the 22-event organizer practice log. Scope: functional proof on the public set, not a broader accuracy claim. Evidence: `demo.py` `detector_f1`/`detector_median_tta_s`/`detector_false_alerts_per_1000`, `tests/test_objectives.py::TestDetectorLabelled` |
+| 7. Lateral movement | Detector on `evt-010`–`evt-012` (new service edges under one session/correlation id) | Group by (session, correlation); flag unknown-edge bursts ≥2/session as CANDIDATE lateral movement; each alert names identity, services, events, rule/path | **measured** — evt-010/011/012 grouped and alerted with full path; isolated denied request (evt-018-style) not alerted. Evidence: `tests/test_objectives.py::TestLateralMovement`, `detector.py` output in `demo.py` |
+| 8. Clock differences | Detector on `evt-013`–`evt-015` (reordered arrival, ±offsets) | Normalize offsets within stated range (±60 s), annotate inversions ≤10 s, flag `order_uncertain` beyond range; original timestamps preserved | **measured** — evt-013/014/015 handled; wild offsets (e.g. 10^9 ms, −90 s) flagged `order_uncertain`, never silently trusted. Evidence: `tests/test_objectives.py::TestClockDifferences`, `tests/test_adversarial.py::TestDetectorPoisoning` |
+| 9. Replay and recipient binding | `demo_networked.py` section 8: duplicate envelope + wrong-recipient envelope over a real socket | AEAD with AAD binding (sid, sender, recipient, counter); duplicates rejected (`duplicate_replay`), binding changes rejected (`recipient_binding_mismatch`) | **measured** — `duplicate_rejected=true`, `binding_rejected=true`; cross-session replay rejected in `tests/test_adversarial.py::TestMessagingAttacks`. Evidence: `tests/test_objectives.py::TestMessaging`, `tests/test_networked.py::test_05` |
+| 10. Forward secrecy | `demo_networked.py` section 8 `/session/establish` reports `ephemeral_sk_retained=false`; endpoint `/session/status` reports keys in RAM only | Per-session ephemeral ML-KEM-768 keypair; encapsulated secret zeroized at accept; session key zeroized at close; long-term key exposure alone reveals nothing about completed sessions | **measured (mechanism)** — zeroization observed (`ephemeral_sk_zeroized=true`, `no_session_keys_on_disk=true`, `endpoint_reports_keys_in_ram=true`); the cryptanalytic property itself rests on ML-KEM IND-CCA and is not independently proven here. Evidence: `tests/test_objectives.py::TestForwardSecrecy` |
+| 11. Delivery under loss or reordering | `demo_networked.py` section 8: deliver 3, drop 1, then 2, retransmit the lost one | Gaps ≤8 buffered; in-order delivery when filled; failures reported (`gap_too_large`); invalid messages discarded | **measured** — `reorder_buffered=true`, final delivery `["msg one","msg two","msg three"]` in order (`gap_filled_delivered_in_order=true`). Evidence: `tests/test_objectives.py::TestDeliveryLossReordering`, `tests/test_networked.py::test_05` |
+| 12. Session resumption | `demo.py` steps `resumption-legit-peer`/`resumption-imposter-rejected`; `tests/test_objectives.py::TestSessionResumption` | Resume requires HMAC(resumption_secret, peer) — peer-bound; secret ratchets per resume; different identity with the same sid rejected | **measured** — legit peer resumes; forged/modified token rejected (`peer_not_bound_to_session`). Evidence: `tests/test_adversarial.py::TestMessagingAttacks::test_forged_resumption_token` |
 
 ## Measurement record
 
-| Metric | Value | Method |
-|---|---|---|
-| Detector F1 (labelled 22-event log) | 1.0 | rules run label-blind; labels only used for scoring (`evaluate_labelled`) |
-| Median time-to-alert | 1.2 s | alert collector receipt time minus first related event's true time, median over 5 alerts |
-| False alerts / 1,000 benign | 0.0 | 0 alerts on 17 benign events |
-| Revocation propagation (networked, real) | node-a ~0.05 s; node-b within its 2.0 s poll | measured per node, recorded in node `/status` |
-| Registry crash recovery (real `kill -9`) | < 1 s | journal replay on restart (`demo_networked.py`) |
-| Test suite | 29 tests, ~5.7 s | `python3 -m unittest discover -s tests` |
-| KEM/AEAD/signature latency | ~1 ms per operation | ML-KEM-768 / ML-DSA-65 / AES-GCM via vetted libs |
+Claim: On three real node processes polling the registry at 0.5 s / 2.0 s / 4.0 s over 127.0.0.1, a device revocation is enforced (read rejected with reason `revoked`) within one poll cycle per node, with the last node enforcing at 3.661 s after revocation.
 
-## Limitations and caveats (honest)
+Setup and input: `python3 demo_networked.py` — 6 separate OS processes (registry, IdP, node-a, node-b, node-c, messaging endpoint), fresh temp state dirs, synthetic identities `user-alex`/`user-blair`, ML-DSA PQ-JWT tokens, real wall clock.
 
-- The 22-event practice dataset demonstrates functional detection only; it
-  cannot establish accuracy, false-positive rate, resilience, cryptographic
-  security, or throughput at scale. Rules are deterministic and
-  context-driven; the labelled set is public and small.
-- Networked-mode revocation coverage depends on the registry as the policy
-  trust anchor; a compromised registry controls policy (documented).
-- The receiving messaging endpoint is a separate process with RAM-only
-  keys; the sending side is a client library (full sender endpoint process
-  is follow-on work).
-- Audit logs (registry and per-node) are unbounded; segment sealing is
-  future work.
-- pqcrypto is pinned to the judging runtime (0.4.0) while development used
-  1.0.0; API compatibility must be re-verified on Python 3.12.
+Procedure:
+1. Start the six processes; wait for each port (`wait_port_proc`).
+2. Register identities at the IdP; set ownership policy at the registry; fetch tokens.
+3. Revoke `device-blair` via `POST /revoke` (journal-signed, epoch bump).
+4. Poll each node's `POST /read` until `decision=="deny"` and `reason=="revoked"`; record `time.time()` deltas and each node's self-reported `propagation_s` from `GET /status`.
+
+Expected result: node-a ≤0.5 s + latency; node-b ≤2 s + latency; node-c ≤4 s + latency (last).
+
+Observed result: node-a 0.259 s (self-reported 0.163 s), node-b 1.641 s (1.605 s), node-c 3.661 s (3.600 s); all three nodes denied with `reason=="revoked"`; owner re-enrol afterwards restores access; `all_checks_pass=true` (24 checks).
+
+Evidence: stdout JSON of `demo_networked.py` (checks + measurements reproduced above); regression coverage in `tests/test_networked.py::test_03`.
+
+Limits: single-host loopback (no network loss/jitter); plain HTTP (TLS/mTLS is a production requirement, documented); revocation timing measured once per demo run, not a statistical sample; the embedded mode used by the organizer validator simulates the same enforcement logic against a virtual clock.
+
+Reviewer and reproduction date: [TODO name / UTC date]

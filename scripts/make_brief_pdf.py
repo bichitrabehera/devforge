@@ -172,11 +172,11 @@ story = [
       "(segment sealing is future work); DoS and traffic analysis are out "
       "of scope; no attacks against other teams or shared services."),
     P("Verification &amp; reproduction", H2),
-    P("python3 -m venv .venv &amp;&amp; source .venv/bin/activate; pip "
-      "install -r requirements.txt; python3 -m unittest discover -s tests "
-      "(29 tests); python3 demo.py (embedded walkthrough); "
-      "python3 demo_networked.py (real 5-process deployment)"
-      "every checkpoint).", sm),
+    P("pip install -r requirements.txt (no venv needed - stdlib plus two "
+      "packages); python3 -m unittest discover -s tests (83 tests); "
+      "python3 demo.py (embedded walkthrough); python3 demo_networked.py "
+      "(real 6-process deployment: registry, IdP, three nodes, messaging "
+      "endpoint).", sm),
     Spacer(1, 2 * mm),
     P("<b>5-minute demo video:</b> %s" % VIDEO),
     P("Repository: created during the hackathon; full source under src/ with "

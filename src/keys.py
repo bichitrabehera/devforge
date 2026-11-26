@@ -118,7 +118,7 @@ def op_rotate_key(request):
     before = state["active_version"]
     grace = request.get("grace_seconds")
     v = new_key_version(state, grace_seconds=grace)
-    st.journal_append({"kind": "rotation", "step": "commit",
+    st.journal_append(state, {"kind": "rotation", "step": "commit",
                        "version": v["version"], "created_at": v["created_at"],
                        "cutoff_at": v["cutoff_at"], "kem_pk": v["kem_pk"],
                        "kem_sk": v["kem_sk"], "ts": st.now()})
@@ -258,7 +258,7 @@ def op_revoke(request):
                                     "epoch": state["revocation_epoch"],
                                     "reason": request.get("reason",
                                                           "device_loss")}
-        st.journal_append({"kind": "revocation", "device": device,
+        st.journal_append(state, {"kind": "revocation", "device": device,
                            "epoch": state["revocation_epoch"],
                            "revoked_at": state["revoked"][device]["revoked_at"]})
     rev = state["revoked"][device]
@@ -298,7 +298,7 @@ def op_re_enroll(request):
     if device in state["revoked"]:
         del state["revoked"][device]
         state["revocation_epoch"] += 1
-        st.journal_append({"kind": "re_enroll", "device": device,
+        st.journal_append(state, {"kind": "re_enroll", "device": device,
                            "epoch": state["revocation_epoch"], "ts": st.now()})
     if actor in state["disabled"]:
         state["disabled"].remove(actor)

@@ -17,10 +17,28 @@ Adapter-contract compliance (docs/adapter-v1.md):
 import base64
 import hashlib
 import hmac
+import os
 
 from . import audit
 from . import crypto
 from . import state as st
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _trusted_approvals(path):
+    """A caller-named approvals file is honored ONLY when it lives inside
+    the repository root (organizer/operator-controlled policy source).
+    Anything else is an injection attempt: return (False, reason)."""
+    if not path:
+        return True, ""
+    try:
+        rp = os.path.realpath(str(path))
+        root = os.path.realpath(_REPO_ROOT)
+        inside = os.path.commonpath([rp, root]) == root
+    except (ValueError, TypeError, OSError):
+        inside = False
+    return inside, "" if inside else "untrusted_approvals_source"
 
 
 def access_decision(state, actor, asset):
@@ -44,19 +62,22 @@ def op_read(request):
     actor = request.get("actor", "")
     asset = request.get("asset", "")
     decision, reasons = access_decision(st_, actor, asset)
-    request_id = request.get("request_id", "")
+    request_id = st.clip(request.get("request_id", ""), 256)
     audit.append(st_, actor, "read", asset, decision,
                  detail=request.get("detail", ""), request_id=request_id)
     # Record the decision against the request id (adapter contract: audit
     # must return the recorded decision, even if policy changes later).
     if request_id:
         decisions = st_.setdefault("decisions", {})
-        decisions[request_id] = {"decision": decision, "actor": actor,
-                                 "asset": asset, "ts": st.now()}
-        if len(decisions) > 1000:   # keep the map bounded
-            for old in sorted(decisions,
-                              key=lambda k: decisions[k]["ts"])[:-1000]:
-                decisions.pop(old, None)
+        # First write wins: a later caller reusing the same request_id
+        # cannot overwrite an already-recorded decision.
+        if request_id not in decisions:
+            decisions[request_id] = {"decision": decision, "actor": actor,
+                                     "asset": asset, "ts": st.now()}
+            if len(decisions) > 1000:   # keep the map bounded
+                for old in sorted(decisions,
+                                  key=lambda k: decisions[k]["ts"])[:-1000]:
+                    decisions.pop(old, None)
     st.save_state(st_)
     resp = {"status": "ok", "decision": decision, "reasons": reasons,
             "actor": actor, "asset": asset, "request_id": request_id}
@@ -79,12 +100,16 @@ def op_protected_read(request):
     actor = request.get("actor", "")
     asset = request.get("asset", "")
     challenge = request.get("challenge", "")
-    request_id = request.get("request_id", "")
+    if not isinstance(challenge, str):     # type-confusion hardening
+        challenge = crypto.canonical(challenge)
+    request_id = st.clip(request.get("request_id", ""), 256)
     decision, reasons = access_decision(st_, actor, asset)
     if request_id:
-        st_.setdefault("decisions", {})[request_id] = {
-            "decision": decision, "actor": actor, "asset": asset,
-            "ts": st.now()}
+        decisions = st_.setdefault("decisions", {})
+        if request_id not in decisions:      # first write wins
+            decisions[request_id] = {
+                "decision": decision, "actor": actor, "asset": asset,
+                "ts": st.now()}
     if decision != "allow":
         audit.append(st_, actor, "protected_read", asset, "deny",
                      detail=";".join(reasons), request_id=request_id)
@@ -100,6 +125,8 @@ def op_protected_read(request):
                 "expected_bytes": 1184, "received_bytes": len(peer_pk)}
     ciphertext, shared_secret = crypto.kem_encaps(peer_pk)
     body = st_["protected_data"].get(asset, {}).get("body", "")
+    if not isinstance(body, str):          # type-confusion hardening
+        body = crypto.canonical(body)
     proof = hmac.new(shared_secret,
                      (challenge + body).encode("utf-8"),
                      hashlib.sha256).hexdigest()
@@ -120,7 +147,7 @@ def op_audit(request):
     only when the request_id was never recorded.
     """
     st_ = st.load_state()
-    request_id = request.get("request_id", "")
+    request_id = st.clip(request.get("request_id", ""), 256)
     rec = st_.get("decisions", {}).get(request_id)
     if rec is not None:
         decision = rec["decision"]
@@ -153,6 +180,14 @@ def op_grant_role(request):
     subject = request.get("subject", "")
     role = request.get("role", "")
     approval_id = request.get("approval_id", "")
+    trusted, why = _trusted_approvals(request.get("approvals_path"))
+    if not trusted:
+        audit.append(st_, admin, "grant_role", subject, "deny",
+                     detail="approvals_source=%s" % why,
+                     request_id=request.get("request_id", ""))
+        st.save_state(st_)
+        return {"status": "ok", "decision": "deny", "reason": why,
+                "subject": subject, "role": role}
     approvals = load_approvals(request.get("approvals_path"),
                                request.get("approvals"))
     approved = approval_matches(approvals, {
@@ -176,6 +211,14 @@ def op_revoke_role(request):
     admin = request.get("admin", "")
     subject = request.get("subject", "")
     approval_id = request.get("approval_id", "")
+    trusted, why = _trusted_approvals(request.get("approvals_path"))
+    if not trusted:
+        audit.append(st_, admin, "revoke_role", subject, "deny",
+                     detail="approvals_source=%s" % why,
+                     request_id=request.get("request_id", ""))
+        st.save_state(st_)
+        return {"status": "ok", "decision": "deny", "reason": why,
+                "subject": subject}
     approvals = load_approvals(request.get("approvals_path"),
                                request.get("approvals"))
     approved = approval_matches(approvals, {

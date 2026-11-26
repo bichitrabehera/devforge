@@ -11,9 +11,12 @@ and **ML-DSA-65 (FIPS 204)** via `pqcrypto`, plus **HKDF-SHA256** and
 
 ## Quick start (clean machine)
 
+No virtual environment is required — the project runs on the system
+Python with exactly two third-party packages (see `requirements.txt`):
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+# system Python is fine (verified: no venv needed)
+pip install -r requirements.txt      # or: pip install --user -r requirements.txt
 
 # run the objective test suite (23 tests)
 python3 -m unittest discover -s tests -v
@@ -106,7 +109,7 @@ with real clocks:
 ```
 registry (control plane) ── policy/keys/epochs served over HTTP
 idp (identity provider) ── issues ML-DSA-signed tokens, publishes /jwks.json
-node-a / node-b ── poll the registry at their own real intervals (0.5 s / 2 s);
+node-a / node-b / node-c ── poll the registry at their own real intervals (0.5 s / 2 s / 4 s);
                     propagation delay is REAL network eventual consistency
 messaging endpoint ── session keys live in RAM only, never on disk
 ```
@@ -136,7 +139,7 @@ outside the live state.
 | Objective | Implementation | Verified by |
 |---|---|---|
 | Key rotation + cutoff | `src/keys.py::op_rotate_key` — new ML-KEM version; old version valid until `cutoff_at = created_at + grace_seconds` (**documented grace period, default 30 s simulated time**); after cutoff every node rejects `old_key_after_cutoff` | `TestRotationCutoff` |
-| Revocation across nodes | `src/keys.py::op_revoke` — per-node enforcement at `revoked_at + node.sync_delay_s` (node-a 0 s, node-b 2 s); reports `time_until_last_node_enforces`; owner re-enrols via `op_re_enroll`, other users unaffected | `TestRevocationAcrossNodes` |
+| Revocation across nodes | `src/keys.py::op_revoke` — per-node enforcement at `revoked_at + node.sync_delay_s` (node-a 0 s, node-b 2 s, node-c 4 s); reports `time_until_last_node_enforces`; owner re-enrols via `op_re_enroll`, other users unaffected | `TestRevocationAcrossNodes` |
 | Crash recovery | `src/recovery.py` — rotations journaled before commit; `recover_state` replays to the last commit marker; state writes are atomic, so a torn write never exposes a half-rotation; revocations survive; total disk loss honestly requires a signed backup | `TestCrashRecovery` |
 | Backup integrity | `op_create_backup` signs the manifest (backup_id + payload SHA-256 + verifier key) with ML-DSA; `op_restore_backup` verifies signature then hash before loading anything; damaged backups are reported, never used | `TestBackupIntegrity` |
 | Log integrity | `src/audit.py` — every entry hash-chained and ML-DSA-signed; user text lives only in the `detail` JSON field, so injection cannot forge a second event or change the actor; `verify_log` validates chain + hashes + signatures | `TestLogIntegrity` |

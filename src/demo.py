@@ -60,6 +60,11 @@ def demo_script():
         run("clock+3", "advance_time", seconds=3)
         run("revoked-node-b", "authenticate", actor="user-blair",
             device="device-blair", node="node-b", request_id="tx-7")
+        run("revoked-node-c-pending", "authenticate", actor="user-blair",
+            device="device-blair", node="node-c", request_id="tx-9")
+        run("clock+2", "advance_time", seconds=2)
+        run("revoked-node-c-last", "authenticate", actor="user-blair",
+            device="device-blair", node="node-c", request_id="tx-10")
         run("re-enroll", "re_enroll", device="device-blair",
             actor="user-blair")
         run("after-re-enroll", "authenticate", actor="user-blair",

@@ -46,6 +46,26 @@ from . import state as st
 REORDER_WINDOW = 8      # documented loss/reordering tolerance
 
 
+MAX_SESSIONS = 256       # DoS bound: capped concurrent session records
+MAX_SEEN = 1000          # DoS bound: replay-detection memory per recipient
+MAX_FAILURES = 100       # DoS bound: reported delivery failures
+
+
+def _device_ok(state, actor):
+    """A participant must be an active identity whose device is not
+    revoked (revocation applies to messaging too, not just access)."""
+    ident = state["identities"].get(actor)
+    if ident is None or actor in state["disabled"]:
+        return False
+    return ident.get("device", actor) not in state["revoked"]
+
+
+def _remember(seen, msg_id):
+    seen.append(msg_id)
+    if len(seen) > MAX_SEEN:
+        del seen[:len(seen) - MAX_SEEN]
+
+
 def _nonce_for(session_key, counter):
     return crypto.hkdf(session_key, b"track4-nonce:" + str(counter).encode(), 12)
 
@@ -75,6 +95,18 @@ def op_session_open(request):
     sender = request.get("sender", "")
     if recipient not in state["identities"]:
         return {"status": "error", "message": "unknown_recipient"}
+    if not _device_ok(state, sender):
+        return {"status": "error", "message": "sender_not_active",
+                "reason": "revoked_or_disabled"}
+    if not _device_ok(state, recipient):
+        return {"status": "error", "message": "recipient_not_active",
+                "reason": "revoked_or_disabled"}
+    # Prune closed sessions, then enforce the session cap (DoS bound).
+    state["sessions"] = {sid: s for sid, s in state["sessions"].items()
+                         if s["state"] != "closed"}
+    if len(state["sessions"]) >= MAX_SESSIONS:
+        return {"status": "error", "message": "too_many_sessions",
+                "cap": MAX_SESSIONS}
     epk, esk = crypto.kem_keypair()
     sid = os.urandom(16).hex()
     state["sessions"][sid] = {
@@ -101,6 +133,9 @@ def op_session_accept(request):
         return {"status": "error", "message": "no_pending_session"}
     sender = request.get("sender", session["sender"])
     recipient = session["recipient"]
+    if not _device_ok(state, sender) or not _device_ok(state, recipient):
+        return {"status": "error", "message": "participant_not_active",
+                "reason": "revoked_or_disabled"}
     ciphertext, shared_secret = crypto.kem_encaps(
         bytes.fromhex(session["ephemeral_pk"]))
     session_key = crypto.hkdf(
@@ -132,6 +167,20 @@ def op_message_send(request):
     recipient = request.get("recipient", session["recipient"])
     if sender != session["sender"] or recipient != session["recipient"]:
         return {"status": "error", "message": "endpoint_mismatch"}
+    # Revocation applies to live messaging sessions too: a revoked device
+    # or disabled actor cannot keep sending.
+    if not _device_ok(state, sender):
+        audit.append(state, sender, "message_send", sid, "deny",
+                     detail="sender_revoked_or_disabled")
+        st.save_state(state)
+        return {"status": "ok", "decision": "deny",
+                "reason": "sender_revoked_or_disabled", "sid": sid}
+    if not _device_ok(state, recipient):
+        audit.append(state, sender, "message_send", sid, "deny",
+                     detail="recipient_revoked_or_disabled")
+        st.save_state(state)
+        return {"status": "ok", "decision": "deny",
+                "reason": "recipient_revoked_or_disabled", "sid": sid}
     counter = session["counter"] + 1
     plaintext = request.get("plaintext", "").encode("utf-8")
     key = bytes.fromhex(session["key"])
@@ -176,6 +225,13 @@ def op_message_receive(request):
         st.save_state(state)
         return {"status": "ok", "decision": "reject",
                 "reason": "recipient_binding_mismatch", "msg_id": msg_id}
+    # A revoked/disabled recipient cannot read (revocation is global).
+    if not _device_ok(state, session["recipient"]):
+        audit.append(state, session["recipient"], "message_receive", sid,
+                     "deny", detail="recipient_revoked_or_disabled")
+        st.save_state(state)
+        return {"status": "ok", "decision": "reject",
+                "reason": "recipient_revoked_or_disabled", "msg_id": msg_id}
 
     seen = state["seen_msg_ids"].setdefault(session["recipient"], [])
     if msg_id in seen:
@@ -192,8 +248,10 @@ def op_message_receive(request):
         return {"status": "ok", "decision": "reject",
                 "reason": "stale_counter", "msg_id": msg_id}
     if counter > session["next_deliver"] + REORDER_WINDOW:
-        state["inbox"].setdefault(session["recipient"], []).append(
-            {"msg_id": msg_id, "failure": "gap_too_large", "counter": counter})
+        failures = state["inbox"].setdefault(session["recipient"], [])
+        if len(failures) < MAX_FAILURES:
+            failures.append({"msg_id": msg_id,
+                             "failure": "gap_too_large", "counter": counter})
         st.save_state(state)
         return {"status": "ok", "decision": "reject", "reason": "gap_too_large",
                 "msg_id": msg_id,
@@ -213,7 +271,7 @@ def op_message_receive(request):
     if counter > session["next_deliver"]:
         session["buffer"][str(counter)] = {
             "msg_id": msg_id, "plaintext": plaintext.decode("utf-8")}
-        seen.append(msg_id)
+        _remember(seen, msg_id)
         st.save_state(state)
         return {"status": "ok", "decision": "buffered", "msg_id": msg_id,
                 "counter": counter,
@@ -228,7 +286,7 @@ def op_message_receive(request):
         nxt["counter"] = session["next_deliver"]
         delivered.append(nxt)
         session["next_deliver"] += 1
-    seen.append(msg_id)
+    _remember(seen, msg_id)
     audit.append(state, session["recipient"], "message_receive", sid, "allow",
                  detail="delivered msg=%s counter=%d" % (msg_id, counter))
     st.save_state(state)
@@ -264,6 +322,13 @@ def op_session_resume(request):
         st.save_state(state)
         return {"status": "ok", "decision": "reject",
                 "reason": "peer_not_bound_to_session", "sid": sid,
+                "peer": peer}
+    if not _device_ok(state, peer):
+        audit.append(state, peer, "session_resume", sid, "deny",
+                     detail="peer_revoked_or_disabled")
+        st.save_state(state)
+        return {"status": "ok", "decision": "reject",
+                "reason": "peer_revoked_or_disabled", "sid": sid,
                 "peer": peer}
     ratchet = int(session.get("resume_count", 0)) + 1
     new_key = crypto.hkdf(bytes.fromhex(secret_hex),

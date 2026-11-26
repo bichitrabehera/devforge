@@ -59,7 +59,7 @@ file.
    documented cutoff (grace 30 s simulated); every node rejects old keys
    after cutoff; authorized transfers continue inside the window.
 2. **Revocation across nodes** — measured per-node enforcement (node-a 0 s,
-   node-b 2 s → last node at +2 s); owner re-enrols; others unaffected.
+   node-c 4 s → last node at +4 s); owner re-enrols; others unaffected.
 3. **Crash recovery** — journal replay to last commit; uncommitted rotations
    discarded; revocations persist; data stays available; total disk loss
    falls back to signed backups (reported honestly).
@@ -90,7 +90,7 @@ file.
   sign/verify per audit entry: ~1 ms — log overhead stays low even with
   per-entry signatures.
 - Real networked path: revocation enforced at node-a within ~0.05 s and
-  node-b within its 2 s poll; registry `kill -9` recovery via journal
+  node-c within its 4 s poll (last to enforce); registry `kill -9` recovery via journal
   replay in < 1 s; session keys never written to disk.
 - Detector over the 22-event labelled log: < 5 ms, fully deterministic.
 

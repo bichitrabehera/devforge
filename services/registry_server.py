@@ -22,9 +22,11 @@ Env:  TRACK4_REGISTRY_DIR (default /tmp/track4_registry)
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
+import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -53,10 +55,24 @@ def _atomic_write(path, data):
 
 
 def _journal_append(state, record):
+    """Append one SIGNED record (ML-DSA, registry key); verified on replay."""
+    sk = state.get("service_dsa_sk")
+    if sk:
+        record = dict(record)
+        record["journal_sig"] = crypto.dsa_sign(
+            sk, crypto.canonical(record).encode())
     with open(_path("journal.jsonl"), "a") as f:
         f.write(json.dumps(record, sort_keys=True) + "\n")
         f.flush()
         os.fsync(f.fileno())
+
+
+def _journal_verify(record, pk_hex):
+    if not record.get("journal_sig"):
+        return False
+    core = {k: v for k, v in record.items() if k != "journal_sig"}
+    return crypto.dsa_verify(pk_hex, crypto.canonical(core).encode(),
+                             record["journal_sig"])
 
 
 def _journal_read():
@@ -106,20 +122,44 @@ def _load_or_recover():
         keys = json.load(f)
 
     state = _default_state()
+    recovered = False
+    integrity_note = None
     try:
         with open(_path("state.json")) as f:
             state = json.load(f)
-        recovered = False
-    except (OSError, json.JSONDecodeError, ValueError):
-        # Torn write / total loss: replay the durable journal.
+        stored = state.pop("state_hash", None)
+        if stored is not None and stored != _state_digest(state):
+            integrity_note = "state_integrity_failure"   # on-disk tampering
+            raise ValueError("manifest mismatch")
+        # Rollback guard: the signed journal is the floor of legitimate
+        # state; a substituted older-but-valid snapshot is rejected here.
+        max_epoch = 0
+        max_ver = 0
         for rec in _journal_read():
-            _apply_record(state, rec)
+            if not _journal_verify(rec, keys["dsa_pk"]):
+                continue
+            if rec.get("kind") == "revocation":
+                max_epoch = max(max_epoch, rec.get("epoch", 0))
+            elif rec.get("kind") == "rotation" and rec.get("step") == "commit":
+                max_ver = max(max_ver, rec.get("version", 0))
+        if (state.get("revocation_epoch", 0) < max_epoch
+                or state.get("active_version", 0) < max_ver):
+            integrity_note = "state_rollback_detected"   # stale snapshot
+            raise ValueError("journal floor above state")
+    except (OSError, json.JSONDecodeError, ValueError):
+        # Torn write, disk loss, OR detected tampering: replay the durable
+        # journal, skipping records whose signature does not verify.
+        state = _default_state()
+        for rec in _journal_read():
+            if _journal_verify(rec, keys["dsa_pk"]):
+                _apply_record(state, rec)
         recovered = True
         _atomic_write(_path("state.json"),
                       json.dumps(state, indent=2, sort_keys=True))
     state["service_dsa_pk"] = keys["dsa_pk"]
     state["service_dsa_sk"] = keys["dsa_sk"]
     state["recovered_from_journal"] = recovered
+    state["integrity_note"] = integrity_note
     return state
 
 
@@ -153,10 +193,18 @@ def _apply_record(state, rec):
             state["disabled"].remove(rec["actor"])
 
 
+def _state_digest(snapshot):
+    core = {k: v for k, v in snapshot.items() if k != "state_hash"}
+    return hashlib.sha256(json.dumps(core, sort_keys=True,
+                                     separators=(",", ":")).encode()).hexdigest()
+
+
 def _save(state):
     snapshot = {k: v for k, v in state.items()
                 if k not in ("service_dsa_pk", "service_dsa_sk",
                   "recovered_from_journal")}
+    snapshot.pop("state_hash", None)
+    snapshot["state_hash"] = _state_digest(snapshot)
     _atomic_write(_path("state.json"),
                   json.dumps(snapshot, indent=2, sort_keys=True))
 
@@ -433,7 +481,8 @@ def main():
     ap.add_argument("--port", type=int, default=8300)
     args = ap.parse_args()
     state = _load_or_recover()
-    netutil.serve(ROUTES, args.port, state=state)
+    netutil.serve(ROUTES, args.port, state=state,
+                  lock=threading.RLock())
     print("registry listening on 127.0.0.1:%d" % args.port, flush=True)
     while True:
         time.sleep(3600)

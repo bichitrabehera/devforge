@@ -222,14 +222,23 @@ class Endpoint:
 
 
 def build_routes(ep):
+    import threading
+    _lock = threading.RLock()   # serialize session state mutations
+
+    def _locked(fn):
+        def wrapper(body):
+            with _lock:
+                return fn(body)
+        return wrapper
+
     return {
         ("GET", "/health"): lambda body: {"status": "ok", "endpoint": ep.name,
                                           "identity": ep.identity},
-        ("POST", "/session/offer"): ep.offer,
-        ("POST", "/session/establish"): ep.establish,
-        ("POST", "/message/receive"): ep.receive,
-        ("POST", "/session/close"): ep.close,
-        ("POST", "/session/resume"): ep.resume,
+        ("POST", "/session/offer"): _locked(ep.offer),
+        ("POST", "/session/establish"): _locked(ep.establish),
+        ("POST", "/message/receive"): _locked(ep.receive),
+        ("POST", "/session/close"): _locked(ep.close),
+        ("POST", "/session/resume"): _locked(ep.resume),
         ("GET", "/messages"): ep.messages,
         ("GET", "/session/status"): ep.session_status,
         ("GET", "/audit"): ep.audit,

@@ -33,7 +33,7 @@ def op_begin_rotation(request):
     created = st.now()
     grace = state["grace_seconds"] if request.get("grace_seconds") is None \
         else request.get("grace_seconds")
-    st.journal_append({"kind": "rotation", "step": "begin",
+    st.journal_append(state, {"kind": "rotation", "step": "begin",
                        "version": version, "created_at": created,
                        "cutoff_at": created + grace,
                        "kem_pk": pk.hex(), "kem_sk": sk.hex(), "ts": created})
@@ -69,7 +69,23 @@ def op_corrupt_state(request):
 
 def op_recover_state(request):
     """Rebuild consistent, authorized key state from the durable journal."""
-    records = st.journal_read()
+    records = []
+    state = st.load_state()   # need the service key to verify signatures
+    if state.get("service_dsa_pk") is None:
+        # The service long-term key is deliberately NOT journaled (that
+        # would duplicate a secret into a second file). Recovery from total
+        # disk loss therefore requires a signed backup; report honestly.
+        return {"status": "error", "message": "service_identity_lost",
+                "recovered": False,
+                "note": "restore from a signed backup instead "
+                        "(ops: create_backup / restore_backup)"}
+    skipped = 0
+    for rec in st.journal_read():
+        ok, why = st.journal_verify(rec, state["service_dsa_pk"])
+        if not ok:
+            skipped += 1     # forged/tampered/unsigned record: ignored
+            continue
+        records.append(rec)
     committed_version = 0
     committed_rotation = None
     revocations = {}
@@ -85,15 +101,6 @@ def op_recover_state(request):
             re_enrollments[rec["device"]] = rec
 
     state = st.load_state()
-    if state.get("service_dsa_pk") is None:
-        # The service long-term key is deliberately NOT journaled (that
-        # would duplicate a secret into a second file). Recovery from total
-        # disk loss therefore requires a signed backup; report honestly.
-        return {"status": "error", "message": "service_identity_lost",
-                "recovered": False,
-                "note": "restore from a signed backup instead "
-                        "(ops: create_backup / restore_backup)"}
-
     if committed_rotation:
         v = {
             "version": committed_rotation["version"],
@@ -121,6 +128,13 @@ def op_recover_state(request):
                                     "reason": "replayed"}
         state["revocation_epoch"] = max(state["revocation_epoch"],
                                         rec["epoch"])
+    # The epoch counter is monotonic across the whole journal (revocations
+    # AND re-enrolments), so a replayed state never sits below the signed
+    # journal floor (rollback-detection invariant).
+    seen_epochs = [rec.get("epoch", 0) for rec in records
+                   if rec.get("kind") in ("revocation", "re_enroll")]
+    state["revocation_epoch"] = max([state["revocation_epoch"]]
+                                    + seen_epochs)
     for name, node in state["nodes"].items():
         node["key_version"] = state["active_version"]
         node["epoch_applied"] = state["revocation_epoch"]
@@ -132,6 +146,8 @@ def op_recover_state(request):
             "committed_version": state["active_version"],
             "still_revoked": list(state["revoked"]),
             "revocation_epoch": state["revocation_epoch"],
+            "journal_records_replayed": len(records),
+            "journal_records_rejected": skipped,
             "protected_data_available": True,
             "log_valid": audit.verify(state)["valid"]}
 

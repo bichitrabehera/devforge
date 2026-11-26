@@ -56,7 +56,7 @@ class TestRotationCutoff(ObjectiveTest):
         self.assertEqual(r["outcome"], "grace")
         # past cutoff: every node rejects the old version
         dispatch({"op": "advance_time", "seconds": 25})
-        for node in ("node-a", "node-b"):
+        for node in ("node-a", "node-b", "node-c"):
             r = dispatch({"op": "authenticate", "actor": "user-alex",
                           "key_version": v1, "node": node})
             self.assertEqual(r["decision"], "deny")
@@ -82,8 +82,8 @@ class TestRevocationAcrossNodes(ObjectiveTest):
         self.setup_service()
         r = dispatch({"op": "revoke", "device": "device-blair"})
         self.assertIn("time_until_last_node_enforces", r)
-        self.assertEqual(r["last_node"], "node-b")
-        self.assertEqual(r["time_until_last_node_enforces"], 2.0)
+        self.assertEqual(r["last_node"], "node-c")
+        self.assertEqual(r["time_until_last_node_enforces"], 4.0)
         # node-a (no sync delay): instant enforcement
         r = dispatch({"op": "authenticate", "actor": "user-blair",
                       "device": "device-blair", "node": "node-a"})
@@ -97,6 +97,15 @@ class TestRevocationAcrossNodes(ObjectiveTest):
         dispatch({"op": "advance_time", "seconds": 3})
         r = dispatch({"op": "authenticate", "actor": "user-blair",
                       "device": "device-blair", "node": "node-b"})
+        self.assertEqual(r["decision"], "deny")
+        self.assertEqual(r["reason"], "revoked")
+        # node-c (4 s delay) is the last node to enforce
+        r = dispatch({"op": "authenticate", "actor": "user-blair",
+                      "device": "device-blair", "node": "node-c"})
+        self.assertEqual(r["decision"], "allow")   # still in propagation
+        dispatch({"op": "advance_time", "seconds": 2})
+        r = dispatch({"op": "authenticate", "actor": "user-blair",
+                      "device": "device-blair", "node": "node-c"})
         self.assertEqual(r["decision"], "deny")
         self.assertEqual(r["reason"], "revoked")
 
@@ -250,7 +259,7 @@ class TestAccessControl(ObjectiveTest):
     def test_disabled_actor_denied_everywhere(self):
         self.setup_service(owners={"doc.txt": "user-alex"})
         dispatch({"op": "disable", "actor": "user-alex"})
-        for node in ("node-a", "node-b"):
+        for node in ("node-a", "node-b", "node-c"):
             r = dispatch({"op": "authenticate", "actor": "user-alex",
                           "device": "device-alex", "node": node})
             self.assertEqual(r["decision"], "deny")
