@@ -14,7 +14,7 @@ No Node.js, FastAPI, database, API keys or organizer services are needed here.
 
 ### Requirements
 
-- Python 3.10+ (tested on Python 3.10)
+- Python 3.12
 - `git` and `pip`
 
 ### Install
