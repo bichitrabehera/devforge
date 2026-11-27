@@ -1,0 +1,337 @@
+{
+  "steps": [
+    {
+      "step": 1,
+      "title": "Login Alex and Blair",
+      "status": "PASS",
+      "evidence": "owner_read_allow=True, peer_read_deny=True"
+    },
+    {
+      "step": 2,
+      "title": "Send encrypted message Node A -> Messenger -> Node B -> Node C",
+      "status": "PASS",
+      "evidence": "relay_session_established=True, relayed_delivered_through_ABC=True"
+    },
+    {
+      "step": 3,
+      "title": "Blair reads the delivered message",
+      "status": "PASS",
+      "evidence": "endpoint_received_plaintext=True"
+    },
+    {
+      "step": 4,
+      "title": "Charlie cannot read the message",
+      "status": "PASS",
+      "evidence": "wrong_recipient_rejected_at_endpoint=True"
+    },
+    {
+      "step": 5,
+      "title": "Rotate Alex's key",
+      "status": "PASS",
+      "evidence": "new_key_every_node=True, new_key_node_c=True"
+    },
+    {
+      "step": 6,
+      "title": "Old key accepted in grace, rejected after cutoff",
+      "status": "PASS",
+      "evidence": "old_key_in_real_grace=True, old_key_after_real_cutoff=True"
+    },
+    {
+      "step": 7,
+      "title": "Revoke Blair's lost device",
+      "status": "PASS",
+      "evidence": "revoked_node-a=True, revoked_node-b=True, revoked_node-c=True"
+    },
+    {
+      "step": 8,
+      "title": "Every node denies the revoked device",
+      "status": "PASS",
+      "evidence": "revoked_node-a=True, revoked_node-b=True, revoked_node-c=True"
+    },
+    {
+      "step": 9,
+      "title": "Re-enrol a NEW Blair device with the recovery identity",
+      "status": "PASS",
+      "evidence": "recovery_identity_token_issued=True, replacement_provisioned=True, recovery_re_enroll_accepted=True"
+    },
+    {
+      "step": 10,
+      "title": "New device works; old device stays denied",
+      "status": "PASS",
+      "evidence": "replacement_device_access=True, replacement_not_revoked=True, old_device_still_revoked_after_recovery=True"
+    },
+    {
+      "step": 11,
+      "title": "Crash and journal recovery",
+      "status": "PASS",
+      "evidence": "registry_recovered_after_kill=True, committed_key_version_after_restart=True"
+    },
+    {
+      "step": 12,
+      "title": "Revoked device still denied after restart",
+      "status": "PASS",
+      "evidence": "revocations_survive_crash=True, revoked_after_restart_node-a=True, revoked_after_restart_node-b=True, revoked_after_restart_node-c=True"
+    },
+    {
+      "step": 13,
+      "title": "Corrupt backup copy and fail closed",
+      "status": "PASS",
+      "evidence": "damaged_backup_rejected=True"
+    },
+    {
+      "step": 14,
+      "title": "Tamper with a controlled log copy and detect it",
+      "status": "PASS",
+      "evidence": "node_log_tamper_detected=True, registry_log_valid=True"
+    },
+    {
+      "step": 15,
+      "title": "Lateral movement produces an explainable alert",
+      "status": "PASS",
+      "evidence": "live_alerts=1; first=lateral_movement"
+    },
+    {
+      "step": 16,
+      "title": "Run detector with real measured metrics",
+      "status": "PASS",
+      "evidence": "f1=1.0 precision=1.0 recall=1.0 median_tta_s=1.2 fp_per_1000=0.0"
+    },
+    {
+      "step": 17,
+      "title": "Verify the audit log",
+      "status": "PASS",
+      "evidence": "valid=True entries=6"
+    }
+  ],
+  "all_steps_pass": true,
+  "networked_demo": {
+    "exit_code": 0,
+    "processes": 9,
+    "checks_passed": 69,
+    "checks_total": 69,
+    "all_checks_pass": true
+  },
+  "measurements": {
+    "grace_period_s": 6.0,
+    "grace_window_request": {
+      "decision": "allow",
+      "outcome": "grace",
+      "key_version": 1
+    },
+    "after_cutoff_request": {
+      "decision": "deny",
+      "reason": "old_key_after_cutoff",
+      "key_version": 1
+    },
+    "revocation_propagation_node-a_s": 0.447,
+    "node-a_reported_propagation_s": 0.442,
+    "revocation_propagation_node-b_s": 1.454,
+    "node-b_reported_propagation_s": 1.386,
+    "revocation_propagation_node-c_s": 3.459,
+    "node-c_reported_propagation_s": 3.381,
+    "revocation_last_node": "node-c",
+    "revocation_last_node_enforcement_s": 3.459,
+    "revocation_measurement_type": "single measured run (not a guaranteed maximum)",
+    "route_revoked_recipient": [
+      "node-a",
+      "node-b",
+      "node-c",
+      "node-c"
+    ],
+    "revoked_recipient_node_decisions": [
+      {
+        "node": "node-a",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-b",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-c",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-c",
+        "decision": "deny",
+        "reason": "recipient_revoked"
+      }
+    ],
+    "message_route": [
+      "user-alex",
+      "node-a",
+      "node-b",
+      "node-c",
+      "node-c/messaging-endpoint",
+      "user-blair"
+    ],
+    "node_decisions": [
+      {
+        "node": "node-a",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-b",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-c",
+        "decision": "allow",
+        "actor": "user-alex",
+        "recipient": "user-blair",
+        "checks": [
+          "token",
+          "identity",
+          "device",
+          "revocation",
+          "key_version",
+          "permission"
+        ]
+      },
+      {
+        "node": "node-c/messaging-endpoint",
+        "decision": "deliver",
+        "reason": ""
+      }
+    ],
+    "gap_step_decisions": [
+      {
+        "counter": 3,
+        "decision": "buffered",
+        "reason": ""
+      },
+      {
+        "counter": 2,
+        "decision": "deliver",
+        "reason": "",
+        "delivered": [
+          "second",
+          "third"
+        ]
+      }
+    ],
+    "reorder_arrival_sequence": [
+      1,
+      3,
+      2
+    ],
+    "delivery_order": [
+      "second",
+      "third"
+    ],
+    "delivery_failures": [
+      {
+        "msg_id": "7c0955a7aee85ce26f604eac",
+        "counter": 4,
+        "failure": "recipient_binding_mismatch"
+      },
+      {
+        "msg_id": "35da66377feabd5b9f294081",
+        "counter": 6,
+        "failure": "authentication_failed"
+      },
+      {
+        "msg_id": "4656feaf5598c141f5e6ba21",
+        "counter": 7,
+        "failure": "authentication_failed"
+      },
+      {
+        "msg_id": "d03ed7e0d34acf096cf57f35",
+        "counter": 8,
+        "failure": "context_mismatch"
+      }
+    ],
+    "gossip_plaintext_node-a": {
+      "type": "policy_ack",
+      "node": "node-a",
+      "epoch": 3,
+      "key_version": 3,
+      "ts": 1795745734.553
+    },
+    "gossip_log_node-a": "deliver",
+    "gossip_log_node-b": "deliver",
+    "gossip_log_node-c": "deliver",
+    "direct_reorder_response": {
+      "status": "ok",
+      "decision": "deliver",
+      "messages": [
+        {
+          "msg_id": "03af11d9acf6103b16f63223",
+          "counter": 1,
+          "plaintext": "msg one"
+        },
+        {
+          "msg_id": "0d79e975bceeadf513a72896",
+          "plaintext": "msg two",
+          "counter": 2
+        }
+      ],
+      "next_deliver": 3
+    },
+    "live_alerts_from_node_logs": 4
+  },
+  "detector": {
+    "f1": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "median_time_to_alert_s": 1.2,
+    "false_alerts_per_1000_benign": 0.0,
+    "dataset_size": 22,
+    "evaluation_scope": "22-event organizer synthetic practice set only; no AI/ML"
+  },
+  "audit": {
+    "valid": true,
+    "event_count": 6
+  },
+  "live_lateral_alerts": 1
+}

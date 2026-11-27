@@ -28,7 +28,7 @@ Python with exactly two third-party packages (see `requirements.txt`):
 # system Python is fine (verified: no venv needed)
 pip install -r requirements.txt      # or: pip install --user -r requirements.txt
 
-# run the full test suite (141 tests incl. KAT, verifier, red team)
+# run the full test suite (135 tests incl. KAT, verifier, red team; 3 skipped)
 python3 -m unittest discover -s tests -v
 
 # scripted end-to-end demonstration (rotation, revocation, recovery,
@@ -44,6 +44,164 @@ State lives under `$TRACK4_STATE_DIR` (default `/tmp/track4_state`): a live
 `state.json` (atomic replace), an append-only `journal.jsonl`, and signed
 backups under `backups/`. Private state for tests/demo is isolated
 automatically.
+
+## Operator console (FastAPI + Next.js)
+
+The API is a **thin layer** over the existing engine: every cryptographic,
+authorization, revocation, recovery, audit and detection decision is made by
+`src.dispatch.dispatch()` and the existing functions in `src/` and `services/`.
+The frontend makes no security decisions; it submits forms and displays safe
+backend responses. No private keys, tokens, stack traces, paths or raw internal
+errors are returned.
+
+### Backend
+
+```bash
+pip install -r requirements.txt -r server/requirements.txt
+
+cd server
+uvicorn main:app --reload --port 8000
+```
+
+CORS allows only `http://localhost:3000`. API endpoints:
+
+| Method | Path | Existing engine function called |
+|---|---|---|
+| POST | `/api/demo/setup` | `keys.op_setup` + `keys.op_re_enroll` for the local practice identities (idempotent) |
+| POST | `/api/demo/reset` | demo-only forced `engine.demo_setup(force=True)` for a fresh practice state after a previous run |
+| POST | `/api/demo/recovery-proof` | demo-only proof generation with the engine-held recovery signing key; do not expose in production |
+| POST | `/api/login` | `keys.op_authenticate`, `keys.op_status`; recovery proof verified with `crypto.dsa_verify` against the registered recovery public key |
+| GET | `/api/status` | `keys.op_status`, `keys.op_node_status`, `detector.evaluate_live`, `detector.evaluate_labelled`, `audit.verify` |
+| POST | `/api/messages/send` | `messaging.op_session_open`, `op_session_accept`, `op_message_send`, `keys.op_authenticate` on node-a/b/c |
+| GET | `/api/messages/{message_id}` | `messaging.op_message_receive` (opaque reference sent as `Authorization: Bearer …`, never in the URL) |
+| POST | `/api/admin/rotate-key` | `keys.op_rotate_key` |
+| POST | `/api/admin/revoke-device` | `keys.op_revoke`, `keys.op_revoke_report`, per-node `keys.op_authenticate` |
+| POST | `/api/recovery/enroll-device` | `keys.op_recover_device`; only the recovery session reference is accepted, plus a proof signed by the bound recovery identity |
+| POST | `/api/admin/crash-recovery-test` | `recovery.op_begin_rotation`, `op_crash_rotation`, `op_recover_state` |
+| POST | `/api/admin/backup-integrity-test` | `recovery.op_create_backup`, `op_damage_backup`, `op_restore_backup` |
+| POST | `/api/admin/log-integrity-test` | `dispatch._op_tamper_log` + `audit.verify` on an isolated state copy |
+| GET | `/api/detector/alerts` | `detector.evaluate_live` |
+| POST | `/api/detector/run` | `detector.evaluate_labelled` |
+| GET | `/api/audit/verify` | `audit.verify` |
+
+A freshly started API auto-creates the local practice state on the first
+`/api/status`, `/api/login` or recovery-login call, so the console works from an
+empty state directory. The explicit `/api/demo/setup` button is idempotent and
+does not clear a stale revoked device. Use `/api/demo/reset` (the console's
+**Reset demo state** button) for a fresh practice state before re-running the
+demo. `/api/demo/recovery-proof` exists only to generate pasteable demo proofs; a
+production deployment must provision proofs at the recovery identity instead.
+The health route is available at both `/api/health` and `/health`.
+
+Safe error categories only: `unauthorized`, `revoked`, `invalid_message`,
+`key_expired`, `backup_corrupt`, `log_tampered`, `invalid_request`.
+Every response — success or failure — carries the stable decision envelope
+`decision`, `reason`, `identity` and `device`; failures additionally carry one
+safe `error` category. No private keys, reference values, stack traces, paths
+or raw internal errors are returned.
+
+Normal `/api/login` accepts `username` and `device_id` and returns an opaque
+session reference (not a key or IdP token); every protected route re-validates
+it through the engine's authentication function before calling the target op.
+Admin routes additionally check the engine's configured `admins` list.
+
+Recovery login accepts `username` plus `recovery_proof`, where the proof is
+signed by the bound recovery identity over the engine-canonical challenge
+`{"actor": "<recovery-username>", "purpose": "recovery_login"}`. The resulting
+recovery reference is the **only** session accepted by
+`/api/recovery/enroll-device`; the lost-device reference is refused. Re-enrol
+still requires the engine's recovery proof over
+`{"actor", "old_device", "device"}`, but never asks for the lost device's
+private key. For POST requests the reference is sent in the JSON body; for the
+authenticated GET message read it is sent in the `Authorization` header.
+
+Stable projections used by the console include `/api/status` (`users`,
+`devices`, `key_versions.active/grace_until/old_key_cutoff`,
+`revocations.epoch/devices`, `nodes[].node/status/last_enforced_revocation`,
+`audit.integrity_status/event_count`, and the three named detector metrics),
+`/api/detector/alerts` (`count`, `alerts[]` with identity/alert/services/
+event_ids/rule/explanation/timestamp), and `/api/messages/send`
+(`status="delivered"`, `message_id`, `route[]`, `policy_decisions[]`).
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+`frontend/.env.local` sets `NEXT_PUBLIC_API_URL=http://localhost:8000`. The
+single text-only page (created with the official `create-next-app` CLI) uses a
+large-screen `3fr_1fr` grid: operator actions on the left (Identity, Secure
+message, Key lifecycle, Device lifecycle, Resilience checks, Detection) and
+live results on the right (Latest result, Message route, Alerts, Key /
+revocation state, Integrity, Raw API response). It uses plain HTML inputs and
+Tailwind only; no UI, icon, chart or animation libraries. Session references,
+recovery proofs and keys are never rendered, and the raw JSON panel redacts
+those fields before display. The theme is cream (`#fbf7ec`) with light pastel
+card headers and hover/focus affordances; `frontend/design.md` remains the
+layout and section-order reference. On wide screens the console is a single
+fixed-height dashboard with no page scroll; the raw JSON preview is collapsed
+by default.
+
+#### Console walkthrough
+
+1. Start the API with `uvicorn main:app --reload --port 8000` from `server/`,
+   then start the frontend with `npm run dev` from `frontend/`. Open
+   `http://localhost:3000`; `GET /health` also returns `200` on port 8000.
+2. The first page load calls `/api/status` and creates the practice identities.
+   The **Setup** button is an idempotent fallback. If the banner says
+   `device-blair is revoked`, click **Reset demo state** first; this clears the
+   stale state that would make recipient sign-in return `403 revoked`.
+3. In **Identity**, click **Authenticate operator** with the default `user-alex` /
+   `device-alex`. In **Secure message**, type a message, set recipient to
+   `user-blair`, and click **Send encrypted message**. The returned `Message ID`
+   is copied into the read field automatically. Click **Authenticate recipient**
+   and then **Read as recipient** before revoking Blair's device. Each envelope
+   can be read once; a second read is correctly refused as a replay.
+4. Click **Authenticate admin** in **Identity**. Admin controls in **Key
+   lifecycle**, **Device lifecycle** and **Resilience checks** use this
+   session; sending uses the operator session and recipient reads use the
+   recipient session. The right column's progress strip is interactive: click
+   **Run next** or any active step chip; grey chips wait for their prerequisites.
+5. For recovery, click **Run next** (or the **Recovery proof** chip) then
+   **Recovery** (or the **Recovery session** chip). In **Device lifecycle**,
+   keep `user-blair` / `device-blair` / `device-blair-replacement`, click
+   **Enrol proof**, **Revoke device**, then **Re-enrol** (or the
+   **Device re-enrolled** chip). The re-enrol uses only the recovery session.
+6. Run **Crash-recovery test**, **Backup-integrity test**, **Log-integrity
+   test**, **Run detector** and **Refresh alerts**. The right column shows the
+   latest decision, message route, alerts, key/revocation state, integrity and
+   the redacted raw JSON.
+
+### Demo and checks
+
+```bash
+python3 scripts/run_working_demo.py   # docs/demo_transcript.txt, docs/demo_metrics.json
+python3 -m unittest discover -s tests -v
+python3 /home/daaku/Desktop/Track-4-Toolkit/validate.py \
+    --entry /absolute/path/to/track4_service.py \
+    > docs/organizer_validation_local.txt
+```
+
+### Known limitations of the console layer
+
+- Login with only `username + device_id` cannot perform IdP proof-of-possession;
+  it relies on the engine's node authentication. A production console should
+  obtain a real IdP token from the device key.
+- `/api/messages/send` uses the engine's embedded node-a/b/c policy checks as
+  the closest existing multi-node path. The genuine 9-process A -> messenger ->
+  B -> C delivery is exercised by `demo_networked.py` and the demo script.
+- The interrupted rotation in `/api/admin/crash-recovery-test` is the existing
+  embedded crash simulation, not a real `SIGKILL` during rotation.
+- Session references are in-memory only and expire after one hour; restarting
+  the API process invalidates them.
+- Read-only endpoints (`/api/status`, `/api/detector/*`, `/api/audit/verify`,
+  `/api/health`, `/health`) are not authenticated in this prototype; a production
+  deployment should gate them behind the IdP as well.
+- Detector metrics are from the 22-event synthetic practice set only and are
+  not a production accuracy claim. Timings are single local runs.
 
 ## Verify everything yourself (operator view)
 
@@ -97,7 +255,10 @@ tests only the exit code is never told OK about a possibly truncated log.
 │   │                       (tree + full git history), AI-identity scan,
 │   │                       validator, tests
 │   ├── eval_detector.py    detector scoring incl. per-class P/R/F1
-│   └── make_brief_pdf.py   renders the 2-page brief
+│   ├── make_brief_pdf.py   renders the 2-page brief
+│   └── run_working_demo.py 17-step transcript + measured metrics
+├── server/                 thin FastAPI wrapper (engine adapters + routes)
+├── frontend/               basic Next.js + Tailwind operator console
 ├── verifier/
 │   └── track4_verify.py    STANDALONE verifier: imports nothing from src/;
 │                           audit/journal/state/backup; exit 0 verified +

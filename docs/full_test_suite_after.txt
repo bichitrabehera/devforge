@@ -1,5 +1,7 @@
+/home/daaku/.local/lib/python3.10/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
 test_outside_root_approvals_ignored (test_adversarial.TestApprovalsInjection) ... ok
-test_fully_forged_backup_rejected (test_adversarial.TestBackupSwap) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:146: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red__tzrnx9t/backups/b1.json' mode='w' encoding='UTF-8'>
+test_fully_forged_backup_rejected (test_adversarial.TestBackupSwap) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:146: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_89p8ceb0/backups/b1.json' mode='w' encoding='UTF-8'>
   json.dump({"manifest": manifest,
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
@@ -9,10 +11,10 @@ test_fuzz_inputs_fail_closed (test_adversarial.TestInjectionAndFuzz) ... ok
 test_log_injection_newline_and_unicode (test_adversarial.TestInjectionAndFuzz) ... ok
 test_protected_read_huge_challenge_bounded_output (test_adversarial.TestInjectionAndFuzz) ... ok
 test_protected_read_type_confusion (test_adversarial.TestInjectionAndFuzz) ... ok
-test_forged_journal_record_rejected_on_replay (test_adversarial.TestJournalForgery) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:101: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_aiwqvl4u/journal.jsonl' mode='r' encoding='UTF-8'>
+test_forged_journal_record_rejected_on_replay (test_adversarial.TestJournalForgery) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:101: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_yoeslf9q/journal.jsonl' mode='r' encoding='UTF-8'>
   lines = open(st.journal_path()).read().splitlines()
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_adversarial.py:105: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_aiwqvl4u/journal.jsonl' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_adversarial.py:105: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_yoeslf9q/journal.jsonl' mode='w' encoding='UTF-8'>
   open(st.journal_path(), "w").write("\n".join(lines) + "\n")
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
@@ -21,44 +23,51 @@ test_cross_session_ciphertext_replay (test_adversarial.TestMessagingAttacks) ...
 test_forged_resumption_token (test_adversarial.TestMessagingAttacks) ... ok
 test_session_flood_capped (test_adversarial.TestMessagingAttacks) ... ok
 test_nan_and_inf_deltas_rejected (test_adversarial.TestNonFiniteClock) ... ok
-test_nan_clock_cannot_bypass_revocation (test_adversarial.TestNonFiniteClock) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:349: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_682umo3e/state.json' mode='r' encoding='UTF-8'>
+test_nan_clock_cannot_bypass_revocation (test_adversarial.TestNonFiniteClock) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:349: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_xyz9avf0/state.json' mode='r' encoding='UTF-8'>
   raw = json.load(open(sp))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_adversarial.py:353: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_682umo3e/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_adversarial.py:353: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_xyz9avf0/state.json' mode='w' encoding='UTF-8'>
   json.dump(raw, open(sp, "w"))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
 test_huge_detail_clipped (test_adversarial.TestResourceBounds) ... ok
 test_huge_request_id_clipped (test_adversarial.TestResourceBounds) ... ok
-test_manifest_plus_rollforward_survives_repeat (test_adversarial.TestRollbackSubstitution) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:321: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_7bb4hi0k/state.json' mode='r' encoding='UTF-8'>
+test_manifest_plus_rollforward_survives_repeat (test_adversarial.TestRollbackSubstitution) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:321: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_e07tu31w/state.json' mode='r' encoding='UTF-8'>
   snapshot = open(sp).read()
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_adversarial.py:323: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_7bb4hi0k/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_adversarial.py:323: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_e07tu31w/state.json' mode='w' encoding='UTF-8'>
   open(sp, "w").write(snapshot)     # roll back to the v1 state
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
-test_stale_snapshot_rolled_forward_by_signed_journal (test_adversarial.TestRollbackSubstitution) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:305: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_sm4_nw2u/state.json' mode='r' encoding='UTF-8'>
+test_stale_snapshot_rolled_forward_by_signed_journal (test_adversarial.TestRollbackSubstitution) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:305: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_bu_gyf5i/state.json' mode='r' encoding='UTF-8'>
   snapshot = open(sp).read()        # attacker's stale-but-valid copy
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_adversarial.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_sm4_nw2u/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_adversarial.py:309: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_bu_gyf5i/state.json' mode='w' encoding='UTF-8'>
   open(sp, "w").write(snapshot)     # substitute the stale state
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
-test_silent_tamper_of_log_region_detected (test_adversarial.TestStateTampering) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:74: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_wjlg7il9/state.json' mode='r' encoding='UTF-8'>
+test_silent_tamper_of_log_region_detected (test_adversarial.TestStateTampering) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:74: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_gjf2nrzq/state.json' mode='r' encoding='UTF-8'>
   raw = json.load(open(sp))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_adversarial.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_wjlg7il9/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_adversarial.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_gjf2nrzq/state.json' mode='w' encoding='UTF-8'>
   json.dump(raw, open(sp, "w"))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
-test_tampered_state_is_quarantined_and_restorable (test_adversarial.TestStateTampering) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:51: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_zz97yl28/state.json' mode='r' encoding='UTF-8'>
+test_tampered_state_is_quarantined_and_restorable (test_adversarial.TestStateTampering) ... /home/daaku/Desktop/yug/tests/test_adversarial.py:51: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_5fav4sph/state.json' mode='r' encoding='UTF-8'>
   raw = json.load(open(sp))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_adversarial.py:54: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_zz97yl28/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_adversarial.py:54: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_red_5fav4sph/state.json' mode='w' encoding='UTF-8'>
   json.dump(raw, open(sp, "w"))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
 test_read_on_unconfigured_state_is_graceful (test_adversarial.TestUnconfiguredState) ... ok
+test_failed_login_reports_attempted_identity_not_previous_session (test_api.ApiEndpointTest) ... ok
+test_integrity_detector_and_audit_endpoints (test_api.ApiEndpointTest) ... ok
+test_login_status_and_protected_authorization (test_api.ApiEndpointTest) ... ok
+test_message_send_and_recipient_only_read (test_api.ApiEndpointTest) ... ok
+test_revocation_and_recovery_use_recovery_session (test_api.ApiEndpointTest) ... ok
+test_reset_clears_stale_revoked_demo_state (test_api.DemoBootstrapTest) ... ok
+test_status_bootstrap_login_proof_and_health (test_api.DemoBootstrapTest) ... ok
 test_adapter_protected_read_roundtrip (test_contract.TestAdapterEndToEnd) ... ok
 test_matches_cryptography_package (test_contract.TestHKDFStandard) ... ok
 test_bad_public_key_rejected (test_contract.TestProtectedRead) ... ok
@@ -67,7 +76,7 @@ test_revoked_owner_cannot_protected_read (test_contract.TestProtectedRead) ... o
 test_roundtrip_verify_proof_and_content (test_contract.TestProtectedRead) ... ok
 test_recorded_decision_survives_policy_change (test_contract.TestRecordedAudit) ... ok
 test_unknown_request_id_falls_back (test_contract.TestRecordedAudit) ... ok
-test_disabled_actors_denied_and_key_material_secret (test_contract.TestSetupReset) ... /home/daaku/Desktop/yug/tests/test_contract.py:74: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_contract_zn7vaqkv/state.json' mode='r' encoding='UTF-8'>
+test_disabled_actors_denied_and_key_material_secret (test_contract.TestSetupReset) ... /home/daaku/Desktop/yug/tests/test_contract.py:74: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_contract_cqt946f6/state.json' mode='r' encoding='UTF-8'>
   raw = open(os.path.join(self._dir, "state.json")).read()
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
@@ -76,6 +85,18 @@ test_duplicate_and_truncated_messages_are_rejected (test_gap_closure.AADBindingT
 test_modified_sender_recipient_msg_id_and_context_are_rejected (test_gap_closure.AADBindingTest) ... ok
 test_recovery_without_lost_key_and_old_session_stays_dead (test_gap_closure.EmbeddedRecoveryTest) ... ok
 test_revocation_keys_data_and_recovery_survive_real_restart (test_gap_closure.RealProcessRestartTest) ... ok
+test_mldsa65_keygen_matches_acvp (test_kat.TestACVP) ... skipped 'tests/vectors/acvp.json not present - drop official NIST ACVP-Server vectors there to enable (see test_kat.py docstring)'
+test_mldsa65_sigver_matches_acvp (test_kat.TestACVP) ... skipped 'tests/vectors/acvp.json not present - drop official NIST ACVP-Server vectors there to enable (see test_kat.py docstring)'
+test_mlkem768_keygen_matches_acvp (test_kat.TestACVP) ... skipped 'tests/vectors/acvp.json not present - drop official NIST ACVP-Server vectors there to enable (see test_kat.py docstring)'
+test_mldsa65_cryptography_sign_pqcrypto_verify (test_kat.TestPQCrossImplementation) ... ok
+test_mldsa65_pqcrypto_rejects_tampered (test_kat.TestPQCrossImplementation) ... ok
+test_mldsa65_pqcrypto_sign_cryptography_verify (test_kat.TestPQCrossImplementation) ... ok
+test_mlkem768_cross_encapsulation_agreement (test_kat.TestPQCrossImplementation)
+Cryptography (OpenSSL) encapsulates against a pqcrypto (PQClean) ... ok
+test_mlkem768_fresh_keypair_roundtrip (test_kat.TestPQCrossImplementation) ... ok
+test_agrees_with_cryptography_hkdf (test_kat.TestRFC5869HKDF)
+Second vetted implementation must agree (byte-for-byte). ... ok
+test_official_vectors (test_kat.TestRFC5869HKDF) ... ok
 test_01_identity_tokens_and_reads (test_networked.NetworkedTest) ... ok
 test_02_rotation_real_cutoff (test_networked.NetworkedTest) ... ok
 test_03_revocation_real_propagation (test_networked.NetworkedTest) ... ok
@@ -127,31 +148,35 @@ test_captured_traffic_survives_long_term_compromise (test_qa_gapfill.TestForward
 test_malformed_structures_fail_closed (test_qa_gapfill.TestInputValidation) ... ok
 test_path_traversal_asset_is_just_a_key (test_qa_gapfill.TestInputValidation) ... ok
 test_unicode_and_control_chars_in_fields (test_qa_gapfill.TestInputValidation) ... ok
-test_entry_deletion_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:64: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_5lvasuqw/state.json' mode='r' encoding='UTF-8'>
+test_commitment_binds_envelope_to_the_session_key (test_qa_gapfill.TestKeyCommitment)
+An envelope encrypted under ANY other key must not deliver, ... ok
+test_commitment_is_deterministic_per_key_and_in_aad (test_qa_gapfill.TestKeyCommitment) ... ok
+test_wrong_key_with_matching_metadata_fails (test_qa_gapfill.TestKeyCommitment) ... ok
+test_entry_deletion_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:65: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_s3oc2pbz/state.json' mode='r' encoding='UTF-8'>
   raw = json.load(open(sp))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_5lvasuqw/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:71: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_s3oc2pbz/state.json' mode='w' encoding='UTF-8'>
   json.dump(raw, open(sp, "w"))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
-test_entry_duplication_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:90: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_bkgnc7c6/state.json' mode='r' encoding='UTF-8'>
+test_entry_duplication_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:91: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_b23b2qer/state.json' mode='r' encoding='UTF-8'>
   raw = json.load(open(sp))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:94: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_bkgnc7c6/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:95: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_b23b2qer/state.json' mode='w' encoding='UTF-8'>
   json.dump(raw, open(sp, "w"))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
-test_entry_insertion_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:76: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_mysc3x5q/state.json' mode='r' encoding='UTF-8'>
+test_entry_insertion_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:77: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_8_5n3xvr/state.json' mode='r' encoding='UTF-8'>
   raw = json.load(open(sp))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:84: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_mysc3x5q/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_8_5n3xvr/state.json' mode='w' encoding='UTF-8'>
   json.dump(raw, open(sp, "w"))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
-test_entry_reordering_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:100: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_fp59j52v/state.json' mode='r' encoding='UTF-8'>
+test_entry_reordering_detected (test_qa_gapfill.TestLogChainMutations) ... /home/daaku/Desktop/yug/tests/test_qa_gapfill.py:101: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_c9_rknxi/state.json' mode='r' encoding='UTF-8'>
   raw = json.load(open(sp))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:106: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_fp59j52v/state.json' mode='w' encoding='UTF-8'>
+/home/daaku/Desktop/yug/tests/test_qa_gapfill.py:107: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/track4_qa_c9_rknxi/state.json' mode='w' encoding='UTF-8'>
   json.dump(raw, open(sp, "w"))
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ok
@@ -175,8 +200,18 @@ test_bitflipped_ciphertext_rejected (test_qa_gapfill.TestTruncatedAndTamperedCip
 test_counter_shift_is_replay_or_auth_failure (test_qa_gapfill.TestTruncatedAndTamperedCiphertext) ... ok
 test_truncated_ciphertext_rejected (test_qa_gapfill.TestTruncatedAndTamperedCiphertext) ... ok
 test_truncated_nonce_rejected (test_qa_gapfill.TestTruncatedAndTamperedCiphertext) ... ok
+test_full_run_has_no_failures (test_selfattack.TestSelfAttackHarness) ... ok
+test_backup_verification (test_verifier.TestStandaloneVerifier) ... ok
+test_clean_audit_with_recorded_head_is_exit_0 (test_verifier.TestStandaloneVerifier) ... ok
+test_clean_audit_without_head_is_exit_2 (test_verifier.TestStandaloneVerifier)
+No recorded head = verified but completeness UNestablished. ... ok
+test_journal_signatures (test_verifier.TestStandaloneVerifier) ... ok
+test_state_manifest_detects_modification (test_verifier.TestStandaloneVerifier) ... ok
+test_tampered_actor_is_exit_1 (test_verifier.TestStandaloneVerifier) ... ok
+test_truncated_log_is_detected_with_head (test_verifier.TestStandaloneVerifier) ... ok
+test_wrong_head_is_exit_1 (test_verifier.TestStandaloneVerifier) ... ok
 
 ----------------------------------------------------------------------
-Ran 108 tests in 35.177s
+Ran 137 tests in 37.342s
 
-OK
+OK (skipped=3)

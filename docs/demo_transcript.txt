@@ -1,0 +1,43 @@
+Track 4 working demo transcript
+============================================================
+Source: demo_networked.py (9 real processes) + existing embedded engine functions.
+All keys/credentials are generated at runtime; no private material is printed.
+
+ 1. [PASS] Login Alex and Blair
+    evidence: owner_read_allow=True, peer_read_deny=True
+ 2. [PASS] Send encrypted message Node A -> Messenger -> Node B -> Node C
+    evidence: relay_session_established=True, relayed_delivered_through_ABC=True
+ 3. [PASS] Blair reads the delivered message
+    evidence: endpoint_received_plaintext=True
+ 4. [PASS] Charlie cannot read the message
+    evidence: wrong_recipient_rejected_at_endpoint=True
+ 5. [PASS] Rotate Alex's key
+    evidence: new_key_every_node=True, new_key_node_c=True
+ 6. [PASS] Old key accepted in grace, rejected after cutoff
+    evidence: old_key_in_real_grace=True, old_key_after_real_cutoff=True
+ 7. [PASS] Revoke Blair's lost device
+    evidence: revoked_node-a=True, revoked_node-b=True, revoked_node-c=True
+ 8. [PASS] Every node denies the revoked device
+    evidence: revoked_node-a=True, revoked_node-b=True, revoked_node-c=True
+ 9. [PASS] Re-enrol a NEW Blair device with the recovery identity
+    evidence: recovery_identity_token_issued=True, replacement_provisioned=True, recovery_re_enroll_accepted=True
+10. [PASS] New device works; old device stays denied
+    evidence: replacement_device_access=True, replacement_not_revoked=True, old_device_still_revoked_after_recovery=True
+11. [PASS] Crash and journal recovery
+    evidence: registry_recovered_after_kill=True, committed_key_version_after_restart=True
+12. [PASS] Revoked device still denied after restart
+    evidence: revocations_survive_crash=True, revoked_after_restart_node-a=True, revoked_after_restart_node-b=True, revoked_after_restart_node-c=True
+13. [PASS] Corrupt backup copy and fail closed
+    evidence: damaged_backup_rejected=True
+14. [PASS] Tamper with a controlled log copy and detect it
+    evidence: node_log_tamper_detected=True, registry_log_valid=True
+15. [PASS] Lateral movement produces an explainable alert
+    evidence: live_alerts=1; first=lateral_movement
+16. [PASS] Run detector with real measured metrics
+    evidence: f1=1.0 precision=1.0 recall=1.0 median_tta_s=1.2 fp_per_1000=0.0
+17. [PASS] Verify the audit log
+    evidence: valid=True entries=6
+
+Networked checks: 69/69 passed (all_checks_pass=True)
+Detector metrics apply only to the 22-event synthetic practice set.
+Crash recovery here is an embedded interrupted-rotation simulation; the networked demo separately kills and restarts a real registry process.
