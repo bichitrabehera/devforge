@@ -12,14 +12,14 @@
       "reason": "old_key_after_cutoff",
       "key_version": 1
     },
-    "revocation_propagation_node-a_s": 0.384,
-    "node-a_reported_propagation_s": 0.377,
-    "revocation_propagation_node-b_s": 1.394,
-    "node-b_reported_propagation_s": 1.313,
-    "revocation_propagation_node-c_s": 3.428,
-    "node-c_reported_propagation_s": 3.317,
+    "revocation_propagation_node-a_s": 0.116,
+    "node-a_reported_propagation_s": 0.041,
+    "revocation_propagation_node-b_s": 1.444,
+    "node-b_reported_propagation_s": 1.443,
+    "revocation_propagation_node-c_s": 3.443,
+    "node-c_reported_propagation_s": 3.446,
     "revocation_last_node": "node-c",
-    "revocation_last_node_enforcement_s": 3.428,
+    "revocation_last_node_enforcement_s": 3.443,
     "revocation_measurement_type": "single measured run (not a guaranteed maximum)",
     "route_revoked_recipient": [
       "node-a",
@@ -160,22 +160,22 @@
     ],
     "delivery_failures": [
       {
-        "msg_id": "ab881f706fc46a32c5c4c7e1",
+        "msg_id": "449ce8e816dd41205316fcef",
         "counter": 4,
         "failure": "recipient_binding_mismatch"
       },
       {
-        "msg_id": "14dc9a93b6dd42f6c6df24b0",
+        "msg_id": "a3a79044156633e8ab2dad2c",
         "counter": 6,
         "failure": "authentication_failed"
       },
       {
-        "msg_id": "28fe2d5c4547bbca9f6629ce",
+        "msg_id": "9d37a373acefc6c667dc3961",
         "counter": 7,
         "failure": "authentication_failed"
       },
       {
-        "msg_id": "72127c9518b3454611889a64",
+        "msg_id": "078dcf434a15a18912206899",
         "counter": 8,
         "failure": "context_mismatch"
       }
@@ -185,7 +185,7 @@
       "node": "node-a",
       "epoch": 3,
       "key_version": 3,
-      "ts": 1795730472.868
+      "ts": 1795739369.609
     },
     "gossip_log_node-a": "deliver",
     "gossip_log_node-b": "deliver",
@@ -195,12 +195,12 @@
       "decision": "deliver",
       "messages": [
         {
-          "msg_id": "c7e0fd65f5ef2dae3962f84c",
+          "msg_id": "3ab1f16d177b5779fba73e08",
           "counter": 1,
           "plaintext": "msg one"
         },
         {
-          "msg_id": "44602b75d39446d3bda9f459",
+          "msg_id": "a059c95b4e1650e602e1f3fe",
           "plaintext": "msg two",
           "counter": 2
         }

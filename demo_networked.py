@@ -34,7 +34,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
 from src import crypto, netutil, tokens  # noqa: E402
-from src.messaging import CONTEXT, _msg_aad  # noqa: E402
+from src.messaging import (CONTEXT, _msg_aad, _key_commitment)  # noqa: E402
 
 POLL_A, POLL_B, POLL_C = 0.5, 2.0, 4.0
 GRACE = 6.0          # real seconds
@@ -216,7 +216,8 @@ def main():
             msg_id = crypto.sha256_hex(crypto.canonical(
                 {"sid": sid, "counter": counter}).encode())[:24]
             aad = _msg_aad(sid, sender, recipient, counter, msg_id=msg_id,
-                           context=CONTEXT, key_version=version)
+                           context=CONTEXT, key_version=version,
+                           key_commitment=_key_commitment(key.hex()))
             ct = crypto.aead_encrypt(key, nonce, plaintext.encode(), aad)
             env = {"sid": sid, "sender": sender, "recipient": recipient,
                    "counter": counter, "nonce": nonce.hex(),
